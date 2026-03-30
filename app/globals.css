@@ -3,6 +3,8 @@
   --foreground: #e4e4e7;
   --accent: #22c55e;
   --muted: #71717a;
+  --card-surface: #12121e;
+  --card-border: #27272a;
 }
 
 * {
@@ -28,3 +30,25 @@ a {
 a:hover {
   text-decoration: underline;
 }
+
+.card {
+  background-color: var(--card-surface);
+  border: 1px solid var(--card-border);
+  border-radius: 0.75rem;
+  transition: all 0.2s ease-in-out;
+}
+
+.card--clickable {
+  cursor: pointer;
+}
+
+.card--clickable:hover {
+  border-color: var(--accent);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+}
+
+.card--clickable:active {
+  transform: translateY(0);
+}
+
