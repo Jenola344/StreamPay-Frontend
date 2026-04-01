@@ -1,229 +1,154 @@
-type Stream = {
-  id: string;
-  recipient: string;
-  amount: string;
-  cadence: string;
-  status: string;
-  note: string;
-};
-
-const streams: Stream[] = [
-  {
-    id: "alma-k",
-    recipient: "Alma K.",
-    amount: "120 XLM / week",
-    cadence: "Fridays at 09:00 UTC",
-    status: "On track",
-    note: "Product design retainer",
-  },
-  {
-    id: "nova-labs",
-    recipient: "Nova Labs",
-    amount: "480 XLM / month",
-    cadence: "1st of each month",
-    status: "Needs review",
-    note: "Infrastructure contract",
-  },
-  {
-    id: "sani-o",
-    recipient: "Sani O.",
-    amount: "35 XLM / day",
-    cadence: "Daily at 18:00 UTC",
-    status: "On track",
-    note: "Community moderation",
-  },
-];
+import { StatusBadge, type StreamStatus } from "./components/StatusBadge";
+import { homeCopy, streamActionCopy } from "./content/copy";
 
 export default function Home() {
+  const actions = Object.values(streamActionCopy);
+  const streamStatuses: StreamStatus[] = ["draft", "active", "paused", "ended"];
+
   return (
-    <>
-      <a className="skip-link" href="#main-content">
-        Skip to main content
-      </a>
-
-      <div className="app-shell">
-        <header className="topbar" aria-label="Workspace header">
-          <div className="brand-lockup">
-            <a className="brand-link" href="#overview">
-              StreamPay
-            </a>
-            <p className="eyebrow">Stellar streaming workspace</p>
-          </div>
-
-          <nav aria-label="Primary">
-            <ul className="nav-list">
-              <li>
-                <a href="#overview">Overview</a>
-              </li>
-              <li>
-                <a href="#streams">Streams</a>
-              </li>
-              <li>
-                <a href="#create-stream">Create stream</a>
-              </li>
-            </ul>
-          </nav>
-
-          <div className="header-actions">
-            <a className="button-like secondary-action" href="#create-stream">
-              New stream
-            </a>
-            <button className="button-like primary-action" type="button">
-              Connect wallet
-            </button>
-          </div>
-        </header>
-
-        <main className="dashboard" id="main-content">
-          <section className="hero panel" id="overview">
-            <div>
-              <p className="eyebrow">Payment streaming on Stellar</p>
-              <h1>Move money with the same confidence as the rest of your app.</h1>
-              <p className="hero-copy">
-                Review active payouts, jump between sections with the keyboard,
-                and create a new stream without leaving the page.
-              </p>
-            </div>
-
-            <dl className="hero-stats" aria-label="Workspace summary">
-              <div>
-                <dt>Active streams</dt>
-                <dd>12</dd>
-              </div>
-              <div>
-                <dt>Next payout</dt>
-                <dd>Today, 18:00 UTC</dd>
-              </div>
-              <div>
-                <dt>Wallet status</dt>
-                <dd>Ready to sign</dd>
-              </div>
-            </dl>
-          </section>
-
-          <section aria-labelledby="streams-heading" className="panel" id="streams">
-            <div className="section-heading">
-              <div>
-                <p className="eyebrow">Streams</p>
-                <h2 id="streams-heading">Active streams</h2>
-              </div>
-              <a className="button-like tertiary-action" href="#create-stream">
-                Create from this view
-              </a>
-            </div>
-
-            <ul className="streams-grid">
-              {streams.map((stream) => (
-                <li className="stream-card" id={`stream-${stream.id}`} key={stream.id}>
-                  <div className="stream-card__header">
-                    <div>
-                      <h3>
-                        <a href={`#stream-${stream.id}`}>
-                          Open details for {stream.recipient}
-                        </a>
-                      </h3>
-                      <p>{stream.note}</p>
-                    </div>
-                    <span className="status-pill">{stream.status}</span>
-                  </div>
-
-                  <dl className="stream-metadata">
-                    <div>
-                      <dt>Rate</dt>
-                      <dd>{stream.amount}</dd>
-                    </div>
-                    <div>
-                      <dt>Schedule</dt>
-                      <dd>{stream.cadence}</dd>
-                    </div>
-                  </dl>
-
-                  <div className="stream-actions">
-                    <button className="button-like secondary-action" type="button">
-                      Pause {stream.recipient}
-                    </button>
-                    <button className="button-like tertiary-action" type="button">
-                      Copy wallet address for {stream.recipient}
-                    </button>
-                  </div>
-                </li>
-              ))}
-            </ul>
-          </section>
-
-          <section aria-labelledby="create-stream-heading" className="panel" id="create-stream">
-            <div className="section-heading section-heading--stacked">
-              <div>
-                <p className="eyebrow">Create flow</p>
-                <h2 id="create-stream-heading">Create a stream</h2>
-              </div>
-              <p className="section-copy" id="create-stream-help">
-                The fields follow the same order as the final review so the tab
-                sequence stays predictable from start to submit.
-              </p>
-            </div>
-
-            <form
-              aria-describedby="create-stream-help"
-              aria-labelledby="create-stream-heading"
-              className="form-grid"
-            >
-              <div className="field">
-                <label htmlFor="recipient-address">Recipient address</label>
-                <input
-                  id="recipient-address"
-                  name="recipientAddress"
-                  placeholder="G..."
-                  type="text"
-                />
-              </div>
-
-              <div className="field">
-                <label htmlFor="stream-amount">Amount</label>
-                <input
-                  id="stream-amount"
-                  name="streamAmount"
-                  placeholder="120 XLM"
-                  type="text"
-                />
-              </div>
-
-              <div className="field">
-                <label htmlFor="distribution-interval">Distribution interval</label>
-                <select id="distribution-interval" name="distributionInterval">
-                  <option>Daily</option>
-                  <option>Weekly</option>
-                  <option>Monthly</option>
-                </select>
-              </div>
-
-              <div className="field">
-                <label htmlFor="start-date">Start date</label>
-                <input id="start-date" name="startDate" type="date" />
-              </div>
-
-              <div className="field field--full">
-                <label htmlFor="stream-notes">Notes</label>
-                <textarea
-                  id="stream-notes"
-                  name="streamNotes"
-                  placeholder="Add context for reviewers or recipients."
-                  rows={4}
-                />
-              </div>
-
-              <div className="form-actions">
-                <button className="button-like primary-action" type="submit">
-                  Create stream
-                </button>
-                <button className="button-like tertiary-action" type="reset">
-                  Clear form
-                </button>
-              </div>
-            </form>
-          </section>
-        </main>
+    <main
+      style={{
+        minHeight: "100vh",
+        display: "flex",
+        flexDirection: "column",
+        alignItems: "center",
+        justifyContent: "center",
+        padding: "2rem",
+        gap: "1.5rem",
+      }}
+    >
+      <div style={{ maxWidth: "48rem", textAlign: "center" }}>
+        <p
+          style={{
+            color: "var(--accent)",
+            fontSize: "0.875rem",
+            fontWeight: 600,
+            letterSpacing: "0.08em",
+            marginBottom: "0.75rem",
+            textTransform: "uppercase",
+          }}
+        >
+          {homeCopy.eyebrow}
+        </p>
+        <h1 style={{ fontSize: "2.75rem", lineHeight: 1.1, marginBottom: "1rem" }}>
+          {homeCopy.heading}
+        </h1>
+        <p style={{ color: "var(--muted-light)", fontSize: "1.05rem", lineHeight: 1.6 }}>
+          {homeCopy.body}
+        </p>
       </div>
-    </>
+
+      <div style={{ display: "flex", gap: "0.75rem", flexWrap: "wrap", justifyContent: "center" }}>
+        <a
+          href="#connect-wallet"
+          style={{
+            background: "var(--accent)",
+            borderRadius: "999px",
+            color: "#03150a",
+            fontWeight: 700,
+            padding: "0.875rem 1.25rem",
+          }}
+        >
+          {homeCopy.primaryCta}
+        </a>
+        <a
+          href="#stream-actions"
+          style={{
+            border: "1px solid var(--border)",
+            borderRadius: "999px",
+            color: "var(--foreground)",
+            fontWeight: 600,
+            padding: "0.875rem 1.25rem",
+          }}
+        >
+          {homeCopy.secondaryCta}
+        </a>
+      </div>
+
+      <section
+        aria-labelledby="stream-actions"
+        id="stream-actions"
+        style={{
+          display: "grid",
+          gap: "1rem",
+          gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
+          maxWidth: "64rem",
+          width: "100%",
+        }}
+      >
+        {actions.map((action) => (
+          <article
+            key={action.label}
+            style={{
+              background: "var(--panel)",
+              border: "1px solid var(--border)",
+              borderRadius: "1rem",
+              padding: "1.25rem",
+            }}
+          >
+            <h2 style={{ fontSize: "1.1rem", marginBottom: "0.5rem" }}>{action.label}</h2>
+            <p style={{ color: "var(--muted-light)", lineHeight: 1.5 }}>{action.description}</p>
+          </article>
+        ))}
+      </section>
+
+      <section
+        aria-labelledby="stream-statuses"
+        style={{ display: "grid", gap: "1rem", maxWidth: "64rem", width: "100%" }}
+      >
+        <div>
+          <h2 id="stream-statuses" style={{ fontSize: "1.5rem", marginBottom: "0.5rem" }}>
+            Stream statuses
+          </h2>
+          <p style={{ color: "var(--muted-light)", lineHeight: 1.5 }}>
+            Reusable badges keep stream lifecycle labels readable in both list and detail views.
+          </p>
+        </div>
+
+        <div
+          style={{
+            background: "var(--panel)",
+            border: "1px solid var(--border)",
+            borderRadius: "1rem",
+            padding: "1.25rem",
+          }}
+        >
+          <h3 style={{ fontSize: "1rem", marginBottom: "0.75rem" }}>List preview</h3>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: "0.75rem" }}>
+            {streamStatuses.map((status) => (
+              <StatusBadge key={status} status={status} />
+            ))}
+          </div>
+        </div>
+
+        <article
+          style={{
+            background: "var(--panel)",
+            border: "1px solid var(--border)",
+            borderRadius: "1rem",
+            display: "grid",
+            gap: "0.75rem",
+            padding: "1.25rem",
+          }}
+        >
+          <div
+            style={{
+              alignItems: "center",
+              display: "flex",
+              gap: "0.75rem",
+              justifyContent: "space-between",
+            }}
+          >
+            <div>
+              <h3 style={{ fontSize: "1rem", marginBottom: "0.25rem" }}>Design Retainer Stream</h3>
+              <p style={{ color: "var(--muted-light)", lineHeight: 1.5 }}>
+                Example detail card showing the same badge in context.
+              </p>
+            </div>
+            <StatusBadge status="active" />
+          </div>
+        </article>
+      </section>
+    </main>
   );
 }
