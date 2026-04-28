@@ -6,6 +6,13 @@
 
 Next.js 15 (React, TypeScript) frontend for the StreamPay protocol. Users will connect Stellar wallets and create/manage payment streams from this dashboard.
 
+## Schedule semantics
+
+- Calendar-month schedules use UTC day boundaries for proration.
+- Mid-month starts and last-day pauses are prorated using inclusive UTC days.
+- Short months use actual day counts (no 30/32-day months).
+- Local time display may shift with DST; calculations remain UTC.
+
 ## Prerequisites
 
 - Node.js 18+
@@ -73,6 +80,22 @@ streampay-frontend/
 ├── .github/workflows/ci.yml
 └── README.md
 ```
+
+## Asset Amount Validation Policy
+
+`app/lib/amount.ts` centralizes amount parsing and stream escrow math used by the frontend stream list.
+
+- Supported assets are intentionally allow-listed: `XLM`, `USDC`.
+- Amount inputs must be plain decimal strings with at most 7 fractional digits (Stellar stroop precision).
+- Negative values are rejected.
+- Values above signed int64 bounds are rejected.
+- Escrow derivation rejects sub-stroop outcomes (no implicit rounding).
+- Validation returns explicit 4xx-style error metadata (`httpStatus` + error `code`) so invalid user input does not bubble into 500-class failures.
+
+## Fuzz and Property-style Tests
+
+- `app/lib/amount.test.ts` includes deterministic fuzz-style checks (seeded RNG) with bounded runtime.
+- Bounded fuzz runs in normal CI because it is fast; if runtime grows in the future, keep deterministic unit coverage in CI and move larger fuzz campaigns to nightly workflows.
 
 ## License
 
