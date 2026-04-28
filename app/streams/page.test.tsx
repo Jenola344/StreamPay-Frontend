@@ -1,5 +1,5 @@
 import { render, screen } from "@testing-library/react";
-import { StreamsPageContent } from "./page";
+import { StreamsPageContent } from "./StreamsPageContent";
 
 describe("StreamsPageContent", () => {
   it("renders the empty state", () => {
