@@ -6,7 +6,7 @@ export type StreamsViewState = "empty" | "loading" | "populated";
 
 const streamListCopy = {
   description:
-    "Track recipients, rates, statuses, and the next action from one scan-friendly streams list.",
+    "Track recipients, rates, statuses, and the next action from one scan-friendly streams list. Calendar-month streams prorate by UTC when starting or pausing mid-month.",
   empty: {
     actionLabel: "Create Your First Stream",
     description: "No streams yet. Create one to start paying collaborators and vendors on a steady schedule.",
@@ -33,7 +33,7 @@ const streamSeeds: StreamSeed[] = [
     nextAction: "Pause",
     rateAmount: "120",
     recipient: "Ada Creative Studio",
-    schedule: "Pays every 30 days",
+    schedule: adaMonthlySchedule.label,
     status: "active",
   },
   {

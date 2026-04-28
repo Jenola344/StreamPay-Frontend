@@ -6,6 +6,13 @@
 
 Next.js 15 (React, TypeScript) frontend for the StreamPay protocol. Users will connect Stellar wallets and create/manage payment streams from this dashboard.
 
+## Schedule semantics
+
+- Calendar-month schedules use UTC day boundaries for proration.
+- Mid-month starts and last-day pauses are prorated using inclusive UTC days.
+- Short months use actual day counts (no 30/32-day months).
+- Local time display may shift with DST; calculations remain UTC.
+
 ## Prerequisites
 
 - Node.js 18+
