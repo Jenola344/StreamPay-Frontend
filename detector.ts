@@ -1,11 +1,13 @@
 import { AnomalyAlert, AnomalyThresholds, MetricSnapshot } from "./types";
+import { getConfig } from "./app/lib/config";
 
 /**
  * Default thresholds tunable via environment variables.
+ * Now sourced from centralized config for validation.
  */
 const DEFAULT_THRESHOLDS: AnomalyThresholds = {
-  creationBurstLimit: Number(process.env.ANOMALY_CREATION_THRESHOLD) || 50,
-  settleRateLimit: Number(process.env.ANOMALY_SETTLE_THRESHOLD) || 20,
+  creationBurstLimit: getConfig().anomalyThresholds.creationBurstLimit,
+  settleRateLimit: getConfig().anomalyThresholds.settleRateLimit,
 };
 
 /**

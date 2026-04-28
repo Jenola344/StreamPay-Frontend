@@ -84,7 +84,8 @@ export function isTrustedInternalRequest(request: NextRequest): boolean {
   
   // In production, validate via auth token or service mesh identity
   const internalAuthToken = request.headers.get('x-internal-auth');
-  if (internalAuthToken && internalAuthToken === process.env.INTERNAL_AUTH_TOKEN) {
+  const config = (global as any).streampayConfig;
+  if (internalAuthToken && config && internalAuthToken === config.internalAuthToken) {
     return true;
   }
   

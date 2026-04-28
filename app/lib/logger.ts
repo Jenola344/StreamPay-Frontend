@@ -1,4 +1,5 @@
 import { AsyncLocalStorage } from 'node:async_hooks';
+import { isSecret, redactSecrets } from './config';
 
 // Correlation context interface
 export interface CorrelationContext {
@@ -89,13 +90,16 @@ export interface LogEntry {
 function log(level: 'info' | 'warn' | 'error' | 'debug', message: string, meta: Record<string, unknown> = {}) {
   const context = getCorrelationContext();
   
+  // Redact secrets before logging
+  const safeMeta = redactSecrets(meta);
+  
   const logEntry: LogEntry = {
     level,
     message,
     timestamp: new Date().toISOString(),
     service: SERVICE_NAME,
     environment: ENVIRONMENT,
-    ...meta,
+    ...safeMeta,
   };
 
   // Add correlation context if available

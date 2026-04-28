@@ -6,6 +6,47 @@
 
 Next.js 15 (React, TypeScript) frontend for the StreamPay protocol. Users will connect Stellar wallets and create/manage payment streams from this dashboard.
 
+## Security Configuration
+
+This application implements strict environment profiles for Stellar testnet and mainnet to prevent dangerous configuration mistakes. See [docs/network-security.md](docs/network-security.md) for complete security documentation.
+
+### Required Environment Variables
+
+The application will fail to boot without these required variables:
+
+- `STELLAR_NETWORK` - Network selection: `testnet` or `mainnet`
+- `JWT_SECRET` - JWT signing secret (minimum 32 characters)
+
+### Setup
+
+1. Copy the example environment file:
+   ```bash
+   cp .env.example .env.local
+   ```
+
+2. Configure for testnet (development):
+   ```env
+   STELLAR_NETWORK=testnet
+   JWT_SECRET=dev-secret-key-at-least-32-chars
+   NODE_ENV=development
+   ```
+
+3. Start the application:
+   ```bash
+   npm run dev
+   ```
+
+### Security Features
+
+- **Fail-fast validation**: Application refuses to start with invalid configuration
+- **No silent defaults**: Never falls back to mainnet automatically
+- **CI guardrails**: CI is enforced to use testnet only
+- **Secret redaction**: All secrets are automatically redacted from logs
+- **UI safety labels**: Testnet assets are clearly labeled to prevent confusion
+- **Centralized config**: All network configuration in one module
+
+See [docs/network-security.md](docs/network-security.md) for the complete security guide.
+
 ## Schedule semantics
 
 - Calendar-month schedules use UTC day boundaries for proration.
