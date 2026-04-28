@@ -28,6 +28,20 @@ export async function POST(
   if (!stream) {
     return createErrorResponse("STREAM_NOT_FOUND", `Stream '${id}' not found`, 404);
   }
+
+  // Org Policy Check
+  const actorAddress = _request.headers.get("Actor-Wallet-Address");
+  const policyResult = checkStreamOrgPolicy(id, actorAddress ?? "", "stop");
+
+  if (policyResult) {
+    if (!policyResult.allowed) {
+      return createErrorResponse(policyResult.code, policyResult.message, policyResult.httpStatus);
+    }
+    if (policyResult.requiresApproval) {
+      return createErrorResponse("APPROVAL_REQUIRED", "This action requires multi-sig approval. Please initiate an approval request.", 409);
+    }
+  }
+
   if (stream.status !== "active" && stream.status !== "draft") {
     return createErrorResponse("INVALID_STREAM_STATE", "Only active or draft streams can be stopped", 409);
   }
