@@ -1,5 +1,9 @@
+"use client";
+
+import { useState } from "react";
 import { EmptyState } from "../components/EmptyState";
 import { StreamRow, type StreamRowData } from "../components/StreamRow";
+import { fetchWithIdempotency } from "../../lib/apiClient";
 
 export type StreamsViewState = "empty" | "loading" | "populated";
 
@@ -90,7 +94,34 @@ export function StreamsPageContent({
   state = "populated",
   streams = mockStreams,
 }: StreamsPageContentProps) {
+  const [isCreating, setIsCreating] = useState(false);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  
   const isEmpty = state === "empty" || streams.length === 0;
+
+  const handleCreateStream = async () => {
+    setIsCreating(true);
+    setErrorMsg(null);
+    
+    try {
+      await fetchWithIdempotency("/api/streams", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          rate: "100 XLM / month",
+          recipient: "New Collaborator",
+        }),
+      });
+      
+      alert("Stream created successfully!");
+    } catch (error: any) {
+      setErrorMsg(error.message);
+    } finally {
+      setIsCreating(false);
+    }
+  };
 
   return (
     <main className="page-shell">
@@ -100,9 +131,22 @@ export function StreamsPageContent({
           <h1 className="page-hero__title">Manage every stream from one list.</h1>
           <p className="page-hero__description">{streamListCopy.description}</p>
         </div>
-        <button className="button button--primary" type="button">
-          {streamListCopy.primaryCta}
-        </button>
+        
+        <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
+          <button 
+            className="button button--primary" 
+            type="button"
+            onClick={handleCreateStream}
+            disabled={isCreating}
+          >
+            {isCreating ? "Processing..." : streamListCopy.primaryCta}
+          </button>
+          {errorMsg && (
+            <p style={{ color: "red", fontSize: "0.875rem", maxWidth: "250px" }}>
+              {errorMsg}
+            </p>
+          )}
+        </div>
       </section>
 
       <section className="stream-layout" aria-labelledby="streams-overview-title">
