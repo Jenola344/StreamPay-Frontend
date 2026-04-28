@@ -449,6 +449,98 @@ a:hover {
   }
 }
 
+/* ─── Semantic Color Tokens ───────────────────────────────────────────────── */
+/*
+ * Naming: --stream-{category}-{variant}-{role}
+ * Roles: bg (fill), text, border
+ * Source of truth for Figma handoff; hex values are placeholders until
+ * design review is complete — replace with approved values before shipping.
+ *
+ * Stream lifecycle: draft → active → paused → ended → cancelled
+ * Settlement:       pending → on-chain → success | error | withdrawn
+ * Stellar accent:   network-specific brand colour (not generic neon)
+ * Interaction:      loading/skeleton and disabled states
+ */
+
+:root {
+  /* ── Stream lifecycle ── */
+  --stream-status-draft-bg:       #1e293b;
+  --stream-status-draft-text:     #dbeafe;
+  --stream-status-draft-border:   #60a5fa;
+
+  --stream-status-active-bg:      #0f2d1e;
+  --stream-status-active-text:    #d3f9df;
+  --stream-status-active-border:  #22c55e;
+
+  --stream-status-paused-bg:      #31230f;
+  --stream-status-paused-text:    #fef3c7;
+  --stream-status-paused-border:  #fbbf24;
+
+  --stream-status-ended-bg:       #1c1c24;
+  --stream-status-ended-text:     #a1a1aa;
+  --stream-status-ended-border:   #3f3f46;
+
+  --stream-status-cancelled-bg:   #2a1617;
+  --stream-status-cancelled-text: #fee2e2;
+  --stream-status-cancelled-border: #f87171;
+
+  /* ── Settlement / payout ── */
+  --stream-settle-pending-bg:     #1e1b2e;
+  --stream-settle-pending-text:   #c4b5fd;
+  --stream-settle-pending-border: #7c3aed;
+
+  --stream-settle-on-chain-bg:    #0f1e2d;
+  --stream-settle-on-chain-text:  #bae6fd;
+  --stream-settle-on-chain-border: #0ea5e9;
+
+  --stream-settle-success-bg:     #0f2d1e;
+  --stream-settle-success-text:   #d3f9df;
+  --stream-settle-success-border: #22c55e;
+
+  --stream-settle-error-bg:       #2a1617;
+  --stream-settle-error-text:     #fee2e2;
+  --stream-settle-error-border:   #f87171;
+
+  --stream-settle-withdrawn-bg:   #1c1c24;
+  --stream-settle-withdrawn-text: #e4e4e7;
+  --stream-settle-withdrawn-border: #52525b;
+
+  /* ── Semantic system ── */
+  --system-success-bg:     #0f2d1e;
+  --system-success-text:   #d3f9df;
+  --system-success-border: #22c55e;
+
+  --system-warning-bg:     #31230f;
+  --system-warning-text:   #fef3c7;
+  --system-warning-border: #fbbf24;
+
+  --system-error-bg:       #2a1617;
+  --system-error-text:     #fee2e2;
+  --system-error-border:   #f87171;
+
+  --system-info-bg:        #0f1e2d;
+  --system-info-text:      #bae6fd;
+  --system-info-border:    #0ea5e9;
+
+  /* ── Stellar network accent ── */
+  /* Stellar brand: #3E1BDB (purple) / #00B4D8 (teal). Confirm against
+     official Stellar brand guide before finalising. */
+  --stellar-accent:        #3e1bdb;
+  --stellar-accent-subtle: #1e1040;
+  --stellar-accent-text:   #c4b5fd;
+  --stellar-accent-border: #7c3aed;
+
+  /* ── Interaction states ── */
+  /* Loading / skeleton — no status hue, neutral shimmer only */
+  --stream-loading-bg:     var(--skeleton-base);
+  --stream-loading-shine:  var(--skeleton-shine);
+
+  /* Disabled actions (start, pause, settle, withdraw) */
+  --stream-disabled-bg:    #1c1c24;
+  --stream-disabled-text:  #52525b;
+  --stream-disabled-border: #27272a;
+}
+
 /* ─── Design QA Checklist ─────────────────────────────────────────────────── */
 
 .checklist-shell {
