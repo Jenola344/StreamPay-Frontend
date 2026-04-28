@@ -18,7 +18,11 @@ function ModalHarness() {
       <button type="button" onClick={() => setIsOpen(true)}>
         Open modal
       </button>
-      <Modal isOpen={isOpen} onClose={() => setIsOpen(false)} title="Confirm action">
+      <Modal
+        isOpen={isOpen}
+        onClose={() => setIsOpen(false)}
+        title="Confirm action"
+      >
         <button type="button">Focusable action</button>
       </Modal>
     </div>

@@ -1,5 +1,6 @@
 import { EmptyState } from "../components/EmptyState";
 import { StreamRow, type StreamRowData } from "../components/StreamRow";
+import { createRate, formatRate, type StreamInterval, type SupportedAsset } from "../lib/amount";
 
 export type StreamsViewState = "empty" | "loading" | "populated";
 
@@ -18,32 +19,59 @@ const streamListCopy = {
   primaryCta: "Create Stream",
 } as const;
 
-export const mockStreams: StreamRowData[] = [
+type StreamSeed = Omit<StreamRowData, "rate"> & {
+  asset: SupportedAsset;
+  interval: StreamInterval;
+  rateAmount: string;
+};
+
+const streamSeeds: StreamSeed[] = [
   {
+    asset: "XLM",
     id: "stream-ada",
+    interval: "month",
     nextAction: "Pause",
-    rate: "120 XLM / month",
+    rateAmount: "120",
     recipient: "Ada Creative Studio",
     schedule: "Pays every 30 days",
     status: "active",
   },
   {
+    asset: "XLM",
     id: "stream-kemi",
+    interval: "week",
     nextAction: "Start",
-    rate: "32 XLM / week",
+    rateAmount: "32",
     recipient: "Kemi Onboarding Support",
     schedule: "Draft stream ready to launch",
     status: "draft",
   },
   {
+    asset: "XLM",
     id: "stream-yusuf",
+    interval: "day",
     nextAction: "Withdraw",
-    rate: "18 XLM / day",
+    rateAmount: "18",
     recipient: "Yusuf QA Partnership",
     schedule: "Ended yesterday with funds available",
     status: "ended",
   },
 ];
+
+function renderRateOrFallback(rateAmount: string, asset: SupportedAsset, interval: StreamInterval): string {
+  const rateResult = createRate(rateAmount, asset, interval);
+
+  if (!rateResult.ok) {
+    return "Invalid rate";
+  }
+
+  return formatRate(rateResult.value);
+}
+
+export const mockStreams: StreamRowData[] = streamSeeds.map(({ asset, interval, rateAmount, ...stream }) => ({
+  ...stream,
+  rate: renderRateOrFallback(rateAmount, asset, interval),
+}));
 
 type StreamsPageContentProps = {
   state?: StreamsViewState;
