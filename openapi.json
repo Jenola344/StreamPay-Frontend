@@ -501,6 +501,152 @@
           "500": { "$ref": "#/components/responses/InternalServerError" }
         }
       }
+    },
+    "/orgs": {
+      "get": {
+        "operationId": "listOrgs",
+        "summary": "List all organizations",
+        "tags": ["Orgs"],
+        "responses": {
+          "200": {
+            "description": "List of organizations",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": { "type": "array", "items": { "type": "object", "properties": { "id": { "type": "string" }, "name": { "type": "string" } } } }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "operationId": "createOrg",
+        "summary": "Create a new organization",
+        "tags": ["Orgs"],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "name": { "type": "string" },
+                  "ownerWalletAddress": { "type": "string" }
+                },
+                "required": ["name", "ownerWalletAddress"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": { "description": "Org created" }
+        }
+      }
+    },
+    "/orgs/{orgId}": {
+      "get": {
+        "operationId": "getOrg",
+        "summary": "Get organization details",
+        "tags": ["Orgs"],
+        "parameters": [{ "name": "orgId", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "responses": {
+          "200": { "description": "Org detail" }
+        }
+      }
+    },
+    "/orgs/{orgId}/members": {
+      "get": {
+        "operationId": "listOrgMembers",
+        "summary": "List org members",
+        "tags": ["Orgs"],
+        "parameters": [{ "name": "orgId", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "responses": {
+          "200": { "description": "Member list" }
+        }
+      },
+      "post": {
+        "operationId": "addOrgMember",
+        "summary": "Add member to organization",
+        "tags": ["Orgs"],
+        "parameters": [
+          { "name": "orgId", "in": "path", "required": true, "schema": { "type": "string" } },
+          { "name": "Actor-Wallet-Address", "in": "header", "required": true, "schema": { "type": "string" } }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "walletAddress": { "type": "string" },
+                  "role": { "type": "string", "enum": ["owner", "pauser", "settler", "viewer"] }
+                },
+                "required": ["walletAddress", "role"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": { "description": "Member added" }
+        }
+      }
+    },
+    "/streams/{id}/approvals": {
+      "get": {
+        "operationId": "listStreamApprovals",
+        "summary": "List active approvals for a stream",
+        "tags": ["Approvals"],
+        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "responses": {
+          "200": { "description": "Approval list" }
+        }
+      },
+      "post": {
+        "operationId": "initiateApproval",
+        "summary": "Initiate a two-step approval",
+        "tags": ["Approvals"],
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "schema": { "type": "string" } },
+          { "name": "Actor-Wallet-Address", "in": "header", "required": true, "schema": { "type": "string" } }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "action": { "type": "string", "enum": ["settle", "stop"] }
+                },
+                "required": ["action"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": { "description": "Approval initiated" }
+        }
+      }
+    },
+    "/streams/{id}/approvals/{approvalId}/approve": {
+      "post": {
+        "operationId": "castApprovalVote",
+        "summary": "Cast an approval vote",
+        "tags": ["Approvals"],
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "schema": { "type": "string" } },
+          { "name": "approvalId", "in": "path", "required": true, "schema": { "type": "string" } },
+          { "name": "Actor-Wallet-Address", "in": "header", "required": true, "schema": { "type": "string" } }
+        ],
+        "responses": {
+          "200": { "description": "Vote cast" }
+        }
+      }
     }
   },
   "components": {
@@ -646,6 +792,54 @@
           "request_id": { "type": "string", "description": "Unique request identifier for tracing" }
         },
         "required": ["code", "message", "request_id"]
+      },
+      "OrgRole": {
+        "type": "string",
+        "enum": ["owner", "pauser", "settler", "viewer"]
+      },
+      "OrgMember": {
+        "type": "object",
+        "properties": {
+          "walletAddress": { "type": "string" },
+          "role": { "$ref": "#/components/schemas/OrgRole" },
+          "addedAt": { "type": "string", "format": "date-time" }
+        }
+      },
+      "StreamPolicy": {
+        "type": "object",
+        "properties": {
+          "policyVersion": { "type": "integer" },
+          "requireApprovals": { "type": "integer", "enum": [1, 2] }
+        }
+      },
+      "Org": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string" },
+          "name": { "type": "string" },
+          "members": { "type": "array", "items": { "$ref": "#/components/schemas/OrgMember" } },
+          "policy": { "$ref": "#/components/schemas/StreamPolicy" }
+        }
+      },
+      "OrgSummary": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string" },
+          "name": { "type": "string" },
+          "memberCount": { "type": "integer" }
+        }
+      },
+      "PendingApproval": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string" },
+          "streamId": { "type": "string" },
+          "action": { "type": "string", "enum": ["settle", "stop"] },
+          "status": { "type": "string", "enum": ["pending", "approved", "rejected", "expired"] },
+          "approvals": { "type": "array", "items": { "type": "string" } },
+          "requiredCount": { "type": "integer" },
+          "expiresAt": { "type": "string", "format": "date-time" }
+        }
       }
     },
     "responses": {

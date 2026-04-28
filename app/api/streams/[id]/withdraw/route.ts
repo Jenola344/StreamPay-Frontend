@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { db } from "@/app/lib/db";
+import { checkStreamOrgPolicy } from "@/app/lib/org-policy";
 
 function createErrorResponse(code: string, message: string, status: number) {
   return NextResponse.json({ error: { code, message, request_id: "mock-request-id" } }, { status });
@@ -14,6 +15,20 @@ export async function POST(
   if (!stream) {
     return createErrorResponse("STREAM_NOT_FOUND", `Stream '${id}' not found`, 404);
   }
+
+  // Org Policy Check
+  const actorAddress = _request.headers.get("Actor-Wallet-Address");
+  const policyResult = checkStreamOrgPolicy(id, actorAddress ?? "", "withdraw");
+
+  if (policyResult) {
+    if (!policyResult.allowed) {
+      return createErrorResponse(policyResult.code, policyResult.message, policyResult.httpStatus);
+    }
+    if (policyResult.requiresApproval) {
+      return createErrorResponse("APPROVAL_REQUIRED", "This action requires multi-sig approval. Please initiate an approval request.", 409);
+    }
+  }
+
   if (stream.status !== "ended") {
     return createErrorResponse("INVALID_STREAM_STATE", "Only ended streams can be withdrawn from", 409);
   }

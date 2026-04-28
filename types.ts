@@ -21,3 +21,24 @@ export interface AnomalyAlert {
   severity: 'low' | 'medium' | 'high';
   detectedAt: string;
 }
+
+export enum ContractStreamStatus {
+  ACTIVE = "active",
+  PAUSED = "paused",
+  SETTLED = "settled",
+}
+
+export interface OnChainStream {
+  id: string;
+  recipient_address: string;
+  total_amount: bigint;
+  released_amount: bigint;
+  velocity: bigint;
+  last_update_timestamp: number;
+  status: ContractStreamStatus;
+}
+
+export interface InvariantResult {
+  isValid: boolean;
+  error?: string;
+}

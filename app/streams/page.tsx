@@ -4,6 +4,7 @@ import { useState } from "react";
 import { EmptyState } from "../components/EmptyState";
 import { StreamRow, type StreamRowData } from "../components/StreamRow";
 import { createRate, formatRate, type StreamInterval, type SupportedAsset } from "../lib/amount";
+import { fetchWithIdempotency } from "@/lib/apiClient";
 
 export type StreamsViewState = "empty" | "loading" | "populated";
 
@@ -36,7 +37,7 @@ const streamSeeds: StreamSeed[] = [
     nextAction: "Pause",
     rateAmount: "120",
     recipient: "Ada Creative Studio",
-    schedule: adaMonthlySchedule.label,
+    schedule: "Monthly retainer schedule",
     status: "active",
   },
   {
@@ -71,7 +72,7 @@ function renderRateOrFallback(rateAmount: string, asset: SupportedAsset, interva
   return formatRate(rateResult.value);
 }
 
-export const mockStreams: StreamRowData[] = streamSeeds.map(({ asset, interval, rateAmount, ...stream }) => ({
+const mockStreams: StreamRowData[] = streamSeeds.map(({ asset, interval, rateAmount, ...stream }) => ({
   ...stream,
   rate: renderRateOrFallback(rateAmount, asset, interval),
 }));
@@ -117,7 +118,7 @@ function StreamListSkeleton() {
   );
 }
 
-export function StreamsPageContent({
+function StreamsPageContent({
   state = "populated",
   streams = mockStreams,
 }: StreamsPageContentProps) {
