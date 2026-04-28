@@ -52,6 +52,7 @@ App will be at `http://localhost:3000`.
 | `npm run build`| Production build      |
 | `npm start`    | Run production build  |
 | `npm test`     | Run Jest tests        |
+| `npm run test:e2e` | Run HTTP lifecycle E2E tests |
 | `npm run lint` | Next.js ESLint        |
 
 ## CI/CD
@@ -63,6 +64,34 @@ On every push/PR to `main`, GitHub Actions runs:
 - Tests: `npm test`
 
 Ensure the workflow passes before merging.
+
+## E2E stream lifecycle harness
+
+The repository includes a black-box HTTP E2E test for stream lifecycle actions:
+
+- `create -> start -> pause -> settle`
+- idempotent retries for `create`, `pause`, and `settle`
+- DB state assertions after each transition
+- mocked Stellar/Soroban settlement at adapter boundary (not business logic)
+
+Run locally:
+
+```bash
+npm run test:e2e
+```
+
+Notes for contributors:
+
+- The test boots a local Next server on a random localhost port to stay parallel-safe in CI.
+- Test isolation uses `resetDb()` before each case.
+- Settlement is mocked via `globalThis.__STREAMPAY_STELLAR_SETTLEMENT_CLIENT__` so no real chain keys or network calls are needed.
+
+## Security notes for lifecycle tests
+
+- No private keys, secrets, or wallet credentials are used by the E2E harness.
+- Settlement calls are mocked and never submit on-chain transactions.
+- Test fixtures avoid PII and keep recipient names synthetic.
+- Auth enforcement is currently out of scope for these routes; tests focus on lifecycle correctness and idempotency behavior.
 
 ## Project structure
 
