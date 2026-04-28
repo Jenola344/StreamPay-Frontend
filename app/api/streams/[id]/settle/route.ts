@@ -1,28 +1,22 @@
 import { NextResponse } from "next/server";
-import { db } from "@/app/lib/db";
-import { getClientIdentity, checkRateLimit, rateLimitResponse } from "@/app/lib/rate-limit";
-import { recordThrottle, recordRequest } from "@/app/lib/rate-limit-metrics";
-import { getLimitForRoute } from "@/app/lib/rate-limit-config";
+import { db, idempotencyToken } from "@/app/lib/db";
+import { getStellarSettlementClient } from "@/app/lib/stellar";
 
 function createErrorResponse(code: string, message: string, status: number) {
   return NextResponse.json({ error: { code, message, request_id: "mock-request-id" } }, { status });
 }
 
 export async function POST(
-  _request: Request,
+  request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params;
-  const url = new URL(_request.url);
-  const limitType = getLimitForRoute("POST", url.pathname);
-  const identity = getClientIdentity(_request);
-  const result = await checkRateLimit(identity, limitType);
+  const idempotencyKey = request.headers.get("Idempotency-Key");
+  const token = idempotencyKey ? idempotencyToken(`streams.settle.${id}`, idempotencyKey) : null;
 
-  if (!result.allowed) {
-    recordThrottle(url.pathname, limitType, identity.type, identity.displayValue);
-    return rateLimitResponse(result.retryAfter!);
+  if (token && db.idempotency.has(token)) {
+    return NextResponse.json(db.idempotency.get(token));
   }
-  recordRequest(url.pathname);
 
   const stream = db.streams.get(id);
   if (!stream) {
@@ -31,17 +25,31 @@ export async function POST(
   if (stream.status !== "active" && stream.status !== "paused") {
     return createErrorResponse("INVALID_STREAM_STATE", "Only active or paused streams can be settled", 409);
   }
+  const txHash = `fake-tx-${crypto.randomUUID().slice(0, 8)}`;
+  const now = new Date().toISOString();
   stream.status = "ended";
   stream.nextAction = "withdraw";
-  stream.updatedAt = new Date().toISOString();
+  stream.settlementTxHash = txHash;
+  stream.withdrawal = {
+    state: "pending",
+    requestedAt: now,
+    lastCheckedAt: now,
+    attempts: 0,
+    settlementTxHash: txHash,
+  };
+  stream.updatedAt = now;
   db.streams.set(id, stream);
-  return NextResponse.json({
-    data: {
-      ...stream,
-      settlement: {
-        txHash: `fake-tx-${crypto.randomUUID().slice(0, 8)}`,
-        settledAt: new Date().toISOString(),
-      },
-    },
-  });
+
+  try {
+    const settlement = await getStellarSettlementClient().settleStream({ streamId: id });
+    const payload = { data: { ...stream, settlement } };
+
+    if (token) {
+      db.idempotency.set(token, payload);
+    }
+
+    return NextResponse.json(payload);
+  } catch {
+    return createErrorResponse("SETTLEMENT_FAILED", "Failed to settle stream on Stellar/Soroban", 502);
+  }
 }

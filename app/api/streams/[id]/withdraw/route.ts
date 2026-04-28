@@ -1,8 +1,6 @@
 import { NextResponse } from "next/server";
 import { db } from "@/app/lib/db";
-import { getClientIdentity, checkRateLimit, rateLimitResponse } from "@/app/lib/rate-limit";
-import { recordThrottle, recordRequest } from "@/app/lib/rate-limit-metrics";
-import { getLimitForRoute } from "@/app/lib/rate-limit-config";
+import { evaluateWithdrawalState } from "@/app/lib/withdraw-finality";
 
 function createErrorResponse(code: string, message: string, status: number) {
   return NextResponse.json({ error: { code, message, request_id: "mock-request-id" } }, { status });
@@ -29,11 +27,16 @@ export async function POST(
     return createErrorResponse("STREAM_NOT_FOUND", `Stream '${id}' not found`, 404);
   }
   if (stream.status !== "ended") {
+    if (stream.status === "withdrawn") {
+      return NextResponse.json({ data: stream });
+    }
     return createErrorResponse("INVALID_STREAM_STATE", "Only ended streams can be withdrawn from", 409);
   }
-  stream.status = "withdrawn";
-  stream.nextAction = undefined;
-  stream.updatedAt = new Date().toISOString();
-  db.streams.set(id, stream);
-  return NextResponse.json({ data: stream });
+  const { stream: updated, alert } = await evaluateWithdrawalState(stream, new Date(), fetch);
+  db.streams.set(id, updated);
+  return NextResponse.json({
+    data: updated,
+    withdrawal: updated.withdrawal,
+    alert,
+  });
 }

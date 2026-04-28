@@ -1,28 +1,21 @@
 import { NextResponse } from "next/server";
-import { db } from "@/app/lib/db";
-import { getClientIdentity, checkRateLimit, rateLimitResponse } from "@/app/lib/rate-limit";
-import { recordThrottle, recordRequest } from "@/app/lib/rate-limit-metrics";
-import { getLimitForRoute } from "@/app/lib/rate-limit-config";
+import { db, idempotencyToken } from "@/app/lib/db";
 
 function createErrorResponse(code: string, message: string, status: number) {
   return NextResponse.json({ error: { code, message, request_id: "mock-request-id" } }, { status });
 }
 
 export async function POST(
-  _request: Request,
+  request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params;
-  const url = new URL(_request.url);
-  const limitType = getLimitForRoute("POST", url.pathname);
-  const identity = getClientIdentity(_request);
-  const result = await checkRateLimit(identity, limitType);
+  const idempotencyKey = request.headers.get("Idempotency-Key");
+  const token = idempotencyKey ? idempotencyToken(`streams.pause.${id}`, idempotencyKey) : null;
 
-  if (!result.allowed) {
-    recordThrottle(url.pathname, limitType, identity.type, identity.displayValue);
-    return rateLimitResponse(result.retryAfter!);
+  if (token && db.idempotency.has(token)) {
+    return NextResponse.json(db.idempotency.get(token));
   }
-  recordRequest(url.pathname);
 
   const stream = db.streams.get(id);
   if (!stream) {
@@ -35,5 +28,11 @@ export async function POST(
   stream.nextAction = "start";
   stream.updatedAt = new Date().toISOString();
   db.streams.set(id, stream);
-  return NextResponse.json({ data: stream });
+
+  const payload = { data: stream };
+  if (token) {
+    db.idempotency.set(token, payload);
+  }
+
+  return NextResponse.json(payload);
 }
