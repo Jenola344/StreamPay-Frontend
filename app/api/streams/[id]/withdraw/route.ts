@@ -1,12 +1,13 @@
 import { NextResponse } from "next/server";
 import { db } from "@/app/lib/db";
+import { recordPrivilegedStreamAuditEvent } from "@/app/lib/audit-log";
 
 function createErrorResponse(code: string, message: string, status: number) {
   return NextResponse.json({ error: { code, message, request_id: "mock-request-id" } }, { status });
 }
 
 export async function POST(
-  _request: Request,
+  request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params;
@@ -17,9 +18,27 @@ export async function POST(
   if (stream.status !== "ended") {
     return createErrorResponse("INVALID_STREAM_STATE", "Only ended streams can be withdrawn from", 409);
   }
-  stream.status = "withdrawn";
-  stream.nextAction = undefined;
-  stream.updatedAt = new Date().toISOString();
-  db.streams.set(id, stream);
-  return NextResponse.json({ data: stream });
+
+  const before = structuredClone(stream);
+  const updatedStream = {
+    ...stream,
+    status: "withdrawn" as const,
+    nextAction: undefined,
+    updatedAt: new Date().toISOString(),
+  };
+
+  db.streams.set(id, updatedStream);
+  recordPrivilegedStreamAuditEvent({
+    action: "stream.withdraw",
+    after: updatedStream,
+    before,
+    metadata: {
+      resultingStatus: updatedStream.status,
+    },
+    request,
+    streamId: id,
+    targetAccount: updatedStream.recipient,
+  });
+
+  return NextResponse.json({ data: updatedStream });
 }

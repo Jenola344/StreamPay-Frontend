@@ -1,7 +1,7 @@
 import { Stream, ActivityEvent } from "@/app/types/openapi";
 
-export const db = {
-  streams: new Map<string, Stream>([
+function createInitialStreams(): Map<string, Stream> {
+  return new Map<string, Stream>([
     [
       "stream-ada",
       {
@@ -41,19 +41,84 @@ export const db = {
         updatedAt: "2026-04-27T20:00:00Z",
       },
     ],
-  ]),
+  ]);
+}
 
-  activity: new Map<string, ActivityEvent>([
-    ["a7383234-4224-49dc-b868-0cdf37649fda", { id: "a7383234-4224-49dc-b868-0cdf37649fda", type: "wallet.connected", timestamp: "2026-04-28T09:00:00Z", description: "Wallet connected and authenticated." }],
-    ["2b9d1d0c-bef4-46bc-a783-3073b28353fc", { id: "2b9d1d0c-bef4-46bc-a783-3073b28353fc", type: "stream.created", streamId: "stream-ada", timestamp: "2026-04-01T09:00:00Z", description: "Stream 'Design Retainer' created and set to draft." }],
-    ["d1578871-4be9-4c6a-bef5-12b2b5836478", { id: "d1578871-4be9-4c6a-bef5-12b2b5836478", type: "stream.started", streamId: "stream-ada", timestamp: "2026-04-01T09:05:00Z", description: "Stream 'Design Retainer' activated." }],
-    ["288f315d-5520-46e9-8acf-96994c87b786", { id: "288f315d-5520-46e9-8acf-96994c87b786", type: "stream.created", streamId: "stream-kemi", timestamp: "2026-04-10T14:00:00Z", description: "Stream 'Kemi Onboarding Support' created as draft." }],
-    ["3bea183d-c3b5-4e96-9fbe-804f3aee49e9", { id: "3bea183d-c3b5-4e96-9fbe-804f3aee49e9", type: "stream.created", streamId: "stream-yusuf", timestamp: "2026-04-15T08:00:00Z", description: "Stream 'Yusuf QA Partnership' created." }],
-    ["5ffa85da-27a4-4f7c-bde0-e5c067a28015", { id: "5ffa85da-27a4-4f7c-bde0-e5c067a28015", type: "stream.stopped", streamId: "stream-yusuf", timestamp: "2026-04-27T20:00:00Z", description: "Stream 'Yusuf QA Partnership' stopped and settled automatically." }],
-  ]),
+function createInitialActivity(): Map<string, ActivityEvent> {
+  return new Map<string, ActivityEvent>([
+    [
+      "a7383234-4224-49dc-b868-0cdf37649fda",
+      {
+        id: "a7383234-4224-49dc-b868-0cdf37649fda",
+        type: "wallet.connected",
+        timestamp: "2026-04-28T09:00:00Z",
+        description: "Wallet connected and authenticated.",
+      },
+    ],
+    [
+      "2b9d1d0c-bef4-46bc-a783-3073b28353fc",
+      {
+        id: "2b9d1d0c-bef4-46bc-a783-3073b28353fc",
+        type: "stream.created",
+        streamId: "stream-ada",
+        timestamp: "2026-04-01T09:00:00Z",
+        description: "Stream 'Design Retainer' created and set to draft.",
+      },
+    ],
+    [
+      "d1578871-4be9-4c6a-bef5-12b2b5836478",
+      {
+        id: "d1578871-4be9-4c6a-bef5-12b2b5836478",
+        type: "stream.started",
+        streamId: "stream-ada",
+        timestamp: "2026-04-01T09:05:00Z",
+        description: "Stream 'Design Retainer' activated.",
+      },
+    ],
+    [
+      "288f315d-5520-46e9-8acf-96994c87b786",
+      {
+        id: "288f315d-5520-46e9-8acf-96994c87b786",
+        type: "stream.created",
+        streamId: "stream-kemi",
+        timestamp: "2026-04-10T14:00:00Z",
+        description: "Stream 'Kemi Onboarding Support' created as draft.",
+      },
+    ],
+    [
+      "3bea183d-c3b5-4e96-9fbe-804f3aee49e9",
+      {
+        id: "3bea183d-c3b5-4e96-9fbe-804f3aee49e9",
+        type: "stream.created",
+        streamId: "stream-yusuf",
+        timestamp: "2026-04-15T08:00:00Z",
+        description: "Stream 'Yusuf QA Partnership' created.",
+      },
+    ],
+    [
+      "5ffa85da-27a4-4f7c-bde0-e5c067a28015",
+      {
+        id: "5ffa85da-27a4-4f7c-bde0-e5c067a28015",
+        type: "stream.stopped",
+        streamId: "stream-yusuf",
+        timestamp: "2026-04-27T20:00:00Z",
+        description: "Stream 'Yusuf QA Partnership' stopped and settled automatically.",
+      },
+    ],
+  ]);
+}
 
+export const db = {
+  streams: createInitialStreams(),
+  activity: createInitialActivity(),
   idempotency: new Map<string, unknown>(),
 };
+
+export function resetDb() {
+  db.streams = createInitialStreams();
+  db.activity = createInitialActivity();
+  db.idempotency = new Map<string, unknown>();
+}
 
 export function encodeCursor(id: string): string {
   return Buffer.from(id).toString("base64");

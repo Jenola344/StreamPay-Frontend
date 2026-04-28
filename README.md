@@ -81,6 +81,18 @@ streampay-frontend/
 └── README.md
 ```
 
+## Security & Audit Logging
+
+Privileged stream actions that can move money or bypass the normal lifecycle now write to an append-only audit log with a hash chain.
+
+- Covered actions: stop override, settle, withdraw
+- Recorded fields: actor, role, target, action, before/after hash, request id, timestamp, previous hash, current hash
+- Read API: `GET /api/audit`
+- Incident export: `GET /api/audit?export=ndjson`
+- Retention policy: 7 years in the mock API surface
+
+See [docs/audit-log.md](docs/audit-log.md) for the access matrix, export redaction policy, and sample log lines.
+
 ## Asset Amount Validation Policy
 
 `app/lib/amount.ts` centralizes amount parsing and stream escrow math used by the frontend stream list.
