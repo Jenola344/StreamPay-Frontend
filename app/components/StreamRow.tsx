@@ -20,8 +20,14 @@ type StreamRowProps = {
 export function StreamRow({ stream }: StreamRowProps) {
   const [isProcessing, setIsProcessing] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const isIncidentMode = process.env.NEXT_PUBLIC_DISABLE_ONCHAIN_OPERATIONS === "true";
 
   const handleAction = async () => {
+    if (isIncidentMode) {
+      setErrorMsg("On-chain operations are temporarily paused during incident mode.");
+      return;
+    }
+
     setIsProcessing(true);
     setErrorMsg(null);
 
@@ -74,10 +80,15 @@ export function StreamRow({ stream }: StreamRowProps) {
           className="button button--secondary stream-row__action" 
           type="button"
           onClick={handleAction}
-          disabled={isProcessing}
+          disabled={isProcessing || isIncidentMode}
         >
           {isProcessing ? "Processing..." : stream.nextAction}
         </button>
+        {isIncidentMode && (
+          <span style={{ color: "orange", fontSize: "0.75rem", maxWidth: "200px", textAlign: "right" }}>
+            On-chain operations are paused.
+          </span>
+        )}
         {errorMsg && (
           <span style={{ color: "red", fontSize: "0.75rem", maxWidth: "200px", textAlign: "right" }}>
             {errorMsg}
