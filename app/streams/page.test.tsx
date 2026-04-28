@@ -24,6 +24,7 @@ describe("StreamsPageContent", () => {
     expect(screen.getByText(/120 xlm \/ month/i)).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /pause/i })).toBeInTheDocument();
     expect(screen.getByLabelText(/stream status: active/i)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /export history/i })).toBeInTheDocument();
   });
 
   it("renders calendar-month edge case schedule messaging", () => {

@@ -71,6 +71,7 @@
             }
           },
           "401": { "$ref": "#/components/responses/Unauthorized" },
+          "429": { "$ref": "#/components/responses/RateLimited" },
           "500": { "$ref": "#/components/responses/InternalServerError" }
         },
         "security": [{ "bearerAuth": [] }]
@@ -126,6 +127,7 @@
           },
           "401": { "$ref": "#/components/responses/Unauthorized" },
           "422": { "$ref": "#/components/responses/UnprocessableEntity" },
+          "429": { "$ref": "#/components/responses/RateLimited" },
           "500": { "$ref": "#/components/responses/InternalServerError" }
         },
         "security": [{ "bearerAuth": [] }]
@@ -162,6 +164,7 @@
             }
           },
           "404": { "$ref": "#/components/responses/NotFound" },
+          "429": { "$ref": "#/components/responses/RateLimited" },
           "500": { "$ref": "#/components/responses/InternalServerError" }
         },
         "security": [{ "bearerAuth": [] }]
@@ -186,6 +189,7 @@
               }
             }
           },
+          "429": { "$ref": "#/components/responses/RateLimited" },
           "500": { "$ref": "#/components/responses/InternalServerError" }
         },
         "security": [{ "bearerAuth": [] }]
@@ -227,6 +231,7 @@
             "description": "Only draft streams can be started",
             "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiError" } } }
           },
+          "429": { "$ref": "#/components/responses/RateLimited" },
           "500": { "$ref": "#/components/responses/InternalServerError" }
         },
         "security": [{ "bearerAuth": [] }]
@@ -268,6 +273,7 @@
             "description": "Only active streams can be paused",
             "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiError" } } }
           },
+          "429": { "$ref": "#/components/responses/RateLimited" },
           "500": { "$ref": "#/components/responses/InternalServerError" }
         },
         "security": [{ "bearerAuth": [] }]
@@ -308,6 +314,7 @@
             "description": "Only active or draft streams can be stopped",
             "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiError" } } }
           },
+          "429": { "$ref": "#/components/responses/RateLimited" },
           "500": { "$ref": "#/components/responses/InternalServerError" }
         },
         "security": [{ "bearerAuth": [] }]
@@ -353,6 +360,7 @@
             "description": "Only active or paused streams can be settled",
             "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiError" } } }
           },
+          "429": { "$ref": "#/components/responses/RateLimited" },
           "500": { "$ref": "#/components/responses/InternalServerError" }
         },
         "security": [{ "bearerAuth": [] }]
@@ -393,6 +401,7 @@
             "description": "Only ended streams can be withdrawn from",
             "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiError" } } }
           },
+          "429": { "$ref": "#/components/responses/RateLimited" },
           "500": { "$ref": "#/components/responses/InternalServerError" }
         },
         "security": [{ "bearerAuth": [] }]
@@ -428,6 +437,7 @@
             }
           },
           "401": { "$ref": "#/components/responses/Unauthorized" },
+          "429": { "$ref": "#/components/responses/RateLimited" },
           "500": { "$ref": "#/components/responses/InternalServerError" }
         },
         "security": [{ "bearerAuth": [] }]
@@ -459,6 +469,7 @@
             }
           },
           "401": { "$ref": "#/components/responses/Unauthorized" },
+          "429": { "$ref": "#/components/responses/RateLimited" },
           "500": { "$ref": "#/components/responses/InternalServerError" }
         },
         "security": [{ "bearerAuth": [] }]
@@ -876,6 +887,21 @@
           "application/json": {
             "schema": { "$ref": "#/components/schemas/ApiError" },
             "example": { "error": { "code": "INTERNAL_ERROR", "message": "An unexpected error occurred", "request_id": "abc123" } }
+          }
+        }
+      },
+      "RateLimited": {
+        "description": "Too many requests",
+        "headers": {
+          "Retry-After": {
+            "schema": { "type": "integer" },
+            "description": "Seconds to wait before retrying"
+          }
+        },
+        "content": {
+          "application/json": {
+            "schema": { "$ref": "#/components/schemas/ApiError" },
+            "example": { "error": { "code": "rate_limit_exceeded", "message": "Rate limit exceeded. Please try again later." } }
           }
         }
       }

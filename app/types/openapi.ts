@@ -1,5 +1,17 @@
 export type StreamStatus = "draft" | "active" | "paused" | "ended" | "withdrawn";
 export type StreamAction = "start" | "pause" | "stop" | "settle" | "withdraw";
+export type WithdrawalState = "pending" | "succeeded" | "failed";
+
+export interface WithdrawalStatus {
+  state: WithdrawalState;
+  requestedAt: string;
+  lastCheckedAt: string;
+  attempts: number;
+  settlementTxHash?: string;
+  confirmedTxHash?: string;
+  horizonCursor?: string;
+  failureCode?: string;
+}
 
 export interface Stream {
   id: string;
@@ -10,6 +22,8 @@ export interface Stream {
   nextAction?: StreamAction;
   createdAt: string;
   updatedAt: string;
+  settlementTxHash?: string;
+  withdrawal?: WithdrawalStatus;
 }
 
 export interface ApiError {
@@ -41,4 +55,17 @@ export interface ActivityEvent {
   streamId?: string;
   timestamp: string;
   description: string;
+}
+
+export type ExportJobStatus = "pending" | "ready" | "failed" | "expired";
+
+export interface ExportJob {
+  id: string;
+  requestedAt: string;
+  status: ExportJobStatus;
+  signedUrl?: string;
+  signedUrlExpiresAt?: string;
+  expiresAt: string;
+  fileName: string;
+  rows: number;
 }

@@ -23,9 +23,11 @@ export interface AnomalyAlert {
 }
 
 export enum ContractStreamStatus {
-  ACTIVE = "active",
-  PAUSED = "paused",
-  SETTLED = "settled",
+  DRAFT = "DRAFT",
+  ACTIVE = "ACTIVE",
+  PAUSED = "PAUSED",
+  SETTLED = "SETTLED",
+  ENDED = "ENDED",
 }
 
 export interface OnChainStream {
