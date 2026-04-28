@@ -1,12 +1,26 @@
 import { NextResponse } from "next/server";
 import { db, encodeCursor, decodeCursor } from "@/app/lib/db";
+import { getClientIdentity, checkRateLimit, rateLimitResponse } from "@/app/lib/rate-limit";
+import { recordThrottle, recordRequest } from "@/app/lib/rate-limit-metrics";
+import { getLimitForRoute } from "@/app/lib/rate-limit-config";
 
 function createErrorResponse(code: string, message: string, status: number) {
   return NextResponse.json({ error: { code, message, request_id: "mock-request-id" } }, { status });
 }
 
 export async function GET(request: Request) {
-  const { searchParams } = new URL(request.url);
+  const url = new URL(request.url);
+  const limitType = getLimitForRoute("GET", url.pathname);
+  const identity = getClientIdentity(request);
+  const result = await checkRateLimit(identity, limitType);
+
+  if (!result.allowed) {
+    recordThrottle(url.pathname, limitType, identity.type, identity.displayValue);
+    return rateLimitResponse(result.retryAfter!);
+  }
+  recordRequest(url.pathname);
+
+  const { searchParams } = url;
   const cursor = searchParams.get("cursor");
   const streamId = searchParams.get("streamId");
   const type = searchParams.get("type");

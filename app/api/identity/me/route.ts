@@ -1,5 +1,8 @@
 import { NextResponse } from "next/server";
 import jwt from "jsonwebtoken";
+import { getClientIdentity, checkRateLimit, rateLimitResponse } from "@/app/lib/rate-limit";
+import { recordThrottle, recordRequest } from "@/app/lib/rate-limit-metrics";
+import { getLimitForRoute } from "@/app/lib/rate-limit-config";
 
 const JWT_SECRET = process.env.JWT_SECRET || "streampay-dev-secret-do-not-use-in-prod";
 
@@ -8,6 +11,17 @@ function createErrorResponse(code: string, message: string, status: number) {
 }
 
 export async function GET(request: Request) {
+  const url = new URL(request.url);
+  const limitType = getLimitForRoute("GET", url.pathname);
+  const identity = getClientIdentity(request);
+  const result = await checkRateLimit(identity, limitType);
+
+  if (!result.allowed) {
+    recordThrottle(url.pathname, limitType, identity.type, identity.displayValue);
+    return rateLimitResponse(result.retryAfter!);
+  }
+  recordRequest(url.pathname);
+
   const authHeader = request.headers.get("authorization");
   if (!authHeader?.startsWith("Bearer ")) {
     return createErrorResponse("UNAUTHORIZED", "Missing or invalid authorization header", 401);
