@@ -2,13 +2,27 @@ import { NextResponse } from "next/server";
 import { db } from "@/app/lib/db";
 import { encodeCursor, decodeCursor } from "@/app/lib/db";
 import { v4 as uuidv4 } from "uuid";
+import { getClientIdentity, checkRateLimit, rateLimitResponse } from "@/app/lib/rate-limit";
+import { recordThrottle, recordRequest } from "@/app/lib/rate-limit-metrics";
+import { getLimitForRoute } from "@/app/lib/rate-limit-config";
 
 function createErrorResponse(code: string, message: string, status: number, requestId = "mock-request-id") {
   return NextResponse.json({ error: { code, message, request_id: requestId } }, { status });
 }
 
 export async function GET(request: Request) {
-  const { searchParams } = new URL(request.url);
+  const url = new URL(request.url);
+  const limitType = getLimitForRoute("GET", url.pathname);
+  const identity = getClientIdentity(request);
+  const result = await checkRateLimit(identity, limitType);
+
+  if (!result.allowed) {
+    recordThrottle(url.pathname, limitType, identity.type, identity.displayValue);
+    return rateLimitResponse(result.retryAfter!);
+  }
+  recordRequest(url.pathname);
+
+  const { searchParams } = url;
   const cursor = searchParams.get("cursor");
   const status = searchParams.get("status");
   const limit = Math.min(parseInt(searchParams.get("limit") || "20"), 100);
@@ -39,6 +53,17 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
+  const url = new URL(request.url);
+  const limitType = getLimitForRoute("POST", url.pathname);
+  const identity = getClientIdentity(request);
+  const result = await checkRateLimit(identity, limitType);
+
+  if (!result.allowed) {
+    recordThrottle(url.pathname, limitType, identity.type, identity.displayValue);
+    return rateLimitResponse(result.retryAfter!);
+  }
+  recordRequest(url.pathname);
+
   const idempotencyKey = request.headers.get("Idempotency-Key");
   if (idempotencyKey && db.idempotency.has(idempotencyKey)) {
     return NextResponse.json(db.idempotency.get(idempotencyKey), { status: 201 });
