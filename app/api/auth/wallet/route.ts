@@ -1,8 +1,17 @@
 import { NextResponse, NextRequest } from "next/server";
 import jwt from "jsonwebtoken";
-import { withCorrelationMiddleware } from "@/app/lib/correlation-middleware";
-import { logger, getCorrelationContext } from "@/app/lib/logger";
-import { getConfig } from "@/app/lib/config";
+import type { AuditActorRole } from "@/app/types/audit";
+
+const JWT_SECRET = process.env.JWT_SECRET || "streampay-dev-secret-do-not-use-in-prod";
+const VALID_ROLES = new Set<AuditActorRole>([
+  "user",
+  "support",
+  "admin",
+  "finance",
+  "security",
+  "compliance",
+  "system",
+]);
 
 function createErrorResponse(code: string, message: string, status: number) {
   const context = getCorrelationContext();
@@ -10,10 +19,9 @@ function createErrorResponse(code: string, message: string, status: number) {
 }
 
 export async function POST(request: Request) {
-  return withCorrelationMiddleware(request as NextRequest, async () => {
-    try {
-      const body = await request.json();
-      const { publicKey, signature, message } = body;
+  try {
+    const body = await request.json();
+    const { publicKey, signature, message, role, actorId } = body;
 
       logger.info('Wallet authentication request', { public_key: publicKey });
 
@@ -27,15 +35,18 @@ export async function POST(request: Request) {
         return createErrorResponse("INVALID_SIGNATURE", "Signature verification failed", 401);
       }
 
-      const config = getConfig();
-      const token = jwt.sign({ sub: publicKey, iss: "streampay" }, config.jwtSecret, { expiresIn: "15m" });
+    const resolvedRole =
+      typeof role === "string" && VALID_ROLES.has(role as AuditActorRole) ? (role as AuditActorRole) : "user";
+    const resolvedActorId = typeof actorId === "string" && actorId.length > 0 ? actorId : publicKey;
 
-      logger.info('Wallet authentication successful', { public_key: publicKey });
+    const token = jwt.sign(
+      { sub: publicKey, iss: "streampay", role: resolvedRole, actorId: resolvedActorId },
+      JWT_SECRET,
+      { expiresIn: "15m" }
+    );
 
-      return NextResponse.json({ accessToken: token, expiresIn: 900 });
-    } catch (error) {
-      logger.error('Wallet auth request failed', { error: error instanceof Error ? error.message : 'Unknown error' });
-      return createErrorResponse("INVALID_REQUEST", "Request body must be valid JSON", 400);
-    }
-  });
+    return NextResponse.json({ accessToken: token, expiresIn: 900, role: resolvedRole, actorId: resolvedActorId });
+  } catch {
+    return createErrorResponse("INVALID_REQUEST", "Request body must be valid JSON", 400);
+  }
 }

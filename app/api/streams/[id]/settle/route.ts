@@ -1,10 +1,6 @@
-import { NextResponse, NextRequest } from "next/server";
-import { db } from "@/app/lib/db";
-import { withCorrelationMiddleware, withStreamContext, withStellarContext } from "@/app/lib/correlation-middleware";
-import { logger, getCorrelationContext } from "@/app/lib/logger";
-import { settlementQueue } from "@/app/lib/queue";
-import { stellarService } from "@/app/lib/stellar";
-import { webhookService } from "@/app/lib/webhook";
+import { NextResponse } from "next/server";
+import { db, idempotencyToken } from "@/app/lib/db";
+import { getStellarSettlementClient } from "@/app/lib/stellar";
 
 function createErrorResponse(code: string, message: string, status: number) {
   const context = getCorrelationContext();
@@ -15,92 +11,60 @@ export async function POST(
   request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  return withCorrelationMiddleware(request as NextRequest, async () => {
-    const { id } = await params;
-    
-    // Add stream context to correlation
-    withStreamContext(id);
-    
-    logger.info('Settlement request received', { stream_id: id });
-    
-    const stream = db.streams.get(id);
-    if (!stream) {
-      logger.warn('Stream not found for settlement', { stream_id: id });
-      return createErrorResponse("STREAM_NOT_FOUND", `Stream '${id}' not found`, 404);
+  const { id } = await params;
+  const idempotencyKey = request.headers.get("Idempotency-Key");
+  const token = idempotencyKey ? idempotencyToken(`streams.settle.${id}`, idempotencyKey) : null;
+
+  if (token && db.idempotency.has(token)) {
+    return NextResponse.json(db.idempotency.get(token));
+  }
+
+  const stream = db.streams.get(id);
+  if (!stream) {
+    return createErrorResponse("STREAM_NOT_FOUND", `Stream '${id}' not found`, 404);
+  }
+
+  // Org Policy Check
+  const actorAddress = _request.headers.get("Actor-Wallet-Address");
+  const policyResult = checkStreamOrgPolicy(id, actorAddress ?? "", "settle");
+
+  if (policyResult) {
+    if (!policyResult.allowed) {
+      return createErrorResponse(policyResult.code, policyResult.message, policyResult.httpStatus);
     }
-    if (stream.status !== "active" && stream.status !== "paused") {
-      logger.warn('Invalid stream state for settlement', { stream_id: id, status: stream.status });
-      return createErrorResponse("INVALID_STREAM_STATE", "Only active or paused streams can be settled", 409);
+    if (policyResult.requiresApproval) {
+      return createErrorResponse("APPROVAL_REQUIRED", "This action requires multi-sig approval. Please initiate an approval request.", 409);
     }
-    
-    // Enqueue settlement job with correlation context
-    const job = await settlementQueue.add('settlement', {
-      streamId: id,
-      recipient: stream.recipient,
-      rate: stream.rate,
-    });
+  }
 
-    logger.info('Settlement job enqueued', {
-      stream_id: id,
-      job_id: job.id,
-      queue_name: job.queueName,
-      correlation_id: job.correlationContext.correlation_id,
-    });
+  if (stream.status !== "active" && stream.status !== "paused") {
+    return createErrorResponse("INVALID_STREAM_STATE", "Only active or paused streams can be settled", 409);
+  }
+  const txHash = `fake-tx-${crypto.randomUUID().slice(0, 8)}`;
+  const now = new Date().toISOString();
+  stream.status = "ended";
+  stream.nextAction = "withdraw";
+  stream.settlementTxHash = txHash;
+  stream.withdrawal = {
+    state: "pending",
+    requestedAt: now,
+    lastCheckedAt: now,
+    attempts: 0,
+    settlementTxHash: txHash,
+  };
+  stream.updatedAt = now;
+  db.streams.set(id, stream);
 
-    // Process the job immediately (in a real system, this would be async)
-    // This demonstrates the full propagation flow
-    try {
-      // Submit to Stellar chain
-      const tx = await stellarService.submitTransaction({
-        streamId: id,
-        amount: stream.rate,
-        recipient: stream.recipient,
-      });
+  try {
+    const settlement = await getStellarSettlementClient().settleStream({ streamId: id });
+    const payload = { data: { ...stream, settlement } };
 
-      // Emit webhook
-      await webhookService.emitWebhook({
-        url: 'https://example.com/webhook',
-        payload: {
-          eventType: 'stream.settled',
-          streamId: id,
-          data: {
-            txHash: tx.txHash,
-            amount: tx.amount,
-            recipient: tx.recipient,
-          },
-          timestamp: new Date().toISOString(),
-        },
-      });
-
-      // Update stream status
-      stream.status = "ended";
-      stream.nextAction = "withdraw";
-      stream.updatedAt = new Date().toISOString();
-      db.streams.set(id, stream);
-
-      logger.info('Settlement completed successfully', { 
-        stream_id: id, 
-        stellar_tx_hash: tx.txHash,
-        job_id: job.id,
-      });
-
-      return NextResponse.json({
-        data: {
-          ...stream,
-          settlement: {
-            txHash: tx.txHash,
-            settledAt: new Date().toISOString(),
-          },
-        },
-      });
-    } catch (error) {
-      logger.error('Settlement processing failed', {
-        stream_id: id,
-        job_id: job.id,
-        error: error instanceof Error ? error.message : 'Unknown error',
-      });
-
-      return createErrorResponse("SETTLEMENT_FAILED", "Settlement processing failed", 500);
+    if (token) {
+      db.idempotency.set(token, payload);
     }
-  });
+
+    return NextResponse.json(payload);
+  } catch {
+    return createErrorResponse("SETTLEMENT_FAILED", "Failed to settle stream on Stellar/Soroban", 502);
+  }
 }

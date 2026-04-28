@@ -93,17 +93,89 @@ App will be at `http://localhost:3000`.
 | `npm run build`| Production build      |
 | `npm start`    | Run production build  |
 | `npm test`     | Run Jest tests        |
+| `npm run test:e2e` | Run HTTP lifecycle E2E tests |
 | `npm run lint` | Next.js ESLint        |
 
 ## CI/CD
 
 On every push/PR to `main`, GitHub Actions runs:
 
+### Standard CI (`.github/workflows/ci.yml`)
 - Install: `npm ci`
 - Build: `npm run build`
 - Tests: `npm test`
 
+### Security Scans (`.github/workflows/security.yml`)
+
+Security gates run on every PR, push to main, and nightly at 2 AM UTC:
+
+1. **CodeQL SAST** - Static Application Security Testing for JavaScript/TypeScript
+   - Analyzes source code for security vulnerabilities
+   - Results appear in GitHub Security tab
+   - Blocks merge on critical findings
+
+2. **Dependency Audit** - npm vulnerability scanning
+   - Scans `package-lock.json` for known vulnerabilities
+   - **Blocks on CRITICAL** severity unless exempted
+   - Exemptions tracked in `.github/security-exemptions.json` with expiry dates
+   - Advisory links provided in PR comments
+
+3. **Container Scan** (conditional - only if Dockerfile exists)
+   - Trivy scanner checks Docker images for OS/library vulnerabilities
+   - Same exemption policy as dependency scan
+   - Scans both CRITICAL and HIGH severity
+
+#### Security Exemptions Policy
+
+Vulnerabilities can be exempted temporarily with:
+- Valid justification and expiry date (max 90 days)
+- No auto-renewal - requires manual review
+- 14-day advance notification before expiry
+- Tracked in `.github/security-exemptions.json`
+
+#### Local Testing
+
+Mirror CI security checks locally:
+```bash
+# Check for dependency vulnerabilities
+npm audit
+
+# View audit in JSON format
+npm audit --json
+
+# Run linting (part of security hygiene)
+npm run lint
+```
+
 Ensure the workflow passes before merging.
+
+## E2E stream lifecycle harness
+
+The repository includes a black-box HTTP E2E test for stream lifecycle actions:
+
+- `create -> start -> pause -> settle`
+- idempotent retries for `create`, `pause`, and `settle`
+- DB state assertions after each transition
+- mocked Stellar/Soroban settlement at adapter boundary (not business logic)
+
+Run locally:
+
+```bash
+npm run test:e2e
+```
+
+Notes for contributors:
+
+- The test boots a local Next server on a random localhost port to stay parallel-safe in CI.
+- Test isolation uses `resetDb()` before each case.
+- Settlement is mocked via `globalThis.__STREAMPAY_STELLAR_SETTLEMENT_CLIENT__` so no real chain keys or network calls are needed.
+
+## Security notes for lifecycle tests
+
+- No private keys, secrets, or wallet credentials are used by the E2E harness.
+- Settlement calls are mocked and never submit on-chain transactions.
+- Test fixtures avoid PII and keep recipient names synthetic.
+- Auth enforcement is currently out of scope for these routes; tests focus on lifecycle correctness and idempotency behavior.
 
 ## Project structure
 
@@ -121,6 +193,16 @@ streampay-frontend/
 ├── .github/workflows/ci.yml
 └── README.md
 ```
+
+## GDPR export support
+
+The app now includes a self-serve export flow for stream and activity history under `/api/exports`.
+
+- `POST /api/exports` creates an async export job
+- `GET /api/exports/:id` returns export status
+- `GET /api/exports/:id?download=true` returns a short-lived signed URL for the resulting CSV
+- Export artifacts are retained for 7 days and signed URLs are short-lived
+- Download requests are audited when the signed URL is requested
 
 ## Asset Amount Validation Policy
 

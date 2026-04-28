@@ -1,7 +1,6 @@
 import { NextResponse, NextRequest } from "next/server";
 import { db } from "@/app/lib/db";
-import { withCorrelationMiddleware, withStreamContext } from "@/app/lib/correlation-middleware";
-import { logger, getCorrelationContext } from "@/app/lib/logger";
+import { evaluateWithdrawalState } from "@/app/lib/withdraw-finality";
 
 function createErrorResponse(code: string, message: string, status: number) {
   const context = getCorrelationContext();
@@ -12,29 +11,47 @@ export async function POST(
   request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  return withCorrelationMiddleware(request as NextRequest, async () => {
-    const { id } = await params;
-    
-    logger.info('Stream withdraw request', { stream_id: id });
-    
-    const stream = db.streams.get(id);
-    if (!stream) {
-      logger.warn('Stream not found for withdraw', { stream_id: id });
-      return createErrorResponse("STREAM_NOT_FOUND", `Stream '${id}' not found`, 404);
+  const { id } = await params;
+  const url = new URL(_request.url);
+  const limitType = getLimitForRoute("POST", url.pathname);
+  const identity = getClientIdentity(_request);
+  const result = await checkRateLimit(identity, limitType);
+
+  if (!result.allowed) {
+    recordThrottle(url.pathname, limitType, identity.type, identity.displayValue);
+    return rateLimitResponse(result.retryAfter!);
+  }
+  recordRequest(url.pathname);
+
+  const stream = db.streams.get(id);
+  if (!stream) {
+    return createErrorResponse("STREAM_NOT_FOUND", `Stream '${id}' not found`, 404);
+  }
+
+  // Org Policy Check
+  const actorAddress = _request.headers.get("Actor-Wallet-Address");
+  const policyResult = checkStreamOrgPolicy(id, actorAddress ?? "", "withdraw");
+
+  if (policyResult) {
+    if (!policyResult.allowed) {
+      return createErrorResponse(policyResult.code, policyResult.message, policyResult.httpStatus);
     }
-    if (stream.status !== "ended") {
-      logger.warn('Invalid stream state for withdraw', { stream_id: id, status: stream.status });
-      return createErrorResponse("INVALID_STREAM_STATE", "Only ended streams can be withdrawn from", 409);
+    if (policyResult.requiresApproval) {
+      return createErrorResponse("APPROVAL_REQUIRED", "This action requires multi-sig approval. Please initiate an approval request.", 409);
     }
-    
-    stream.status = "withdrawn";
-    stream.nextAction = undefined;
-    stream.updatedAt = new Date().toISOString();
-    db.streams.set(id, stream);
-    
-    withStreamContext(id);
-    logger.info('Stream withdrawn successfully', { stream_id: id });
-    
-    return NextResponse.json({ data: stream });
+  }
+
+  if (stream.status !== "ended") {
+    if (stream.status === "withdrawn") {
+      return NextResponse.json({ data: stream });
+    }
+    return createErrorResponse("INVALID_STREAM_STATE", "Only ended streams can be withdrawn from", 409);
+  }
+  const { stream: updated, alert } = await evaluateWithdrawalState(stream, new Date(), fetch);
+  db.streams.set(id, updated);
+  return NextResponse.json({
+    data: updated,
+    withdrawal: updated.withdrawal,
+    alert,
   });
 }

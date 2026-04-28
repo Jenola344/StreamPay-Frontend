@@ -1,7 +1,5 @@
-import { NextResponse, NextRequest } from "next/server";
-import { db } from "@/app/lib/db";
-import { withCorrelationMiddleware, withStreamContext } from "@/app/lib/correlation-middleware";
-import { logger, getCorrelationContext } from "@/app/lib/logger";
+import { NextResponse } from "next/server";
+import { db, idempotencyToken } from "@/app/lib/db";
 
 function createErrorResponse(code: string, message: string, status: number) {
   const context = getCorrelationContext();
@@ -12,29 +10,44 @@ export async function POST(
   request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  return withCorrelationMiddleware(request as NextRequest, async () => {
-    const { id } = await params;
-    
-    logger.info('Stream pause request', { stream_id: id });
-    
-    const stream = db.streams.get(id);
-    if (!stream) {
-      logger.warn('Stream not found for pause', { stream_id: id });
-      return createErrorResponse("STREAM_NOT_FOUND", `Stream '${id}' not found`, 404);
+  const { id } = await params;
+  const idempotencyKey = request.headers.get("Idempotency-Key");
+  const token = idempotencyKey ? idempotencyToken(`streams.pause.${id}`, idempotencyKey) : null;
+
+  if (token && db.idempotency.has(token)) {
+    return NextResponse.json(db.idempotency.get(token));
+  }
+
+  const stream = db.streams.get(id);
+  if (!stream) {
+    return createErrorResponse("STREAM_NOT_FOUND", `Stream '${id}' not found`, 404);
+  }
+
+  // Org Policy Check
+  const actorAddress = _request.headers.get("Actor-Wallet-Address");
+  const policyResult = checkStreamOrgPolicy(id, actorAddress ?? "", "pause");
+
+  if (policyResult) {
+    if (!policyResult.allowed) {
+      return createErrorResponse(policyResult.code, policyResult.message, policyResult.httpStatus);
     }
-    if (stream.status !== "active") {
-      logger.warn('Invalid stream state for pause', { stream_id: id, status: stream.status });
-      return createErrorResponse("INVALID_STREAM_STATE", "Only active streams can be paused", 409);
+    if (policyResult.requiresApproval) {
+      return createErrorResponse("APPROVAL_REQUIRED", "This action requires multi-sig approval. Please initiate an approval request.", 409);
     }
-    
-    stream.status = "paused";
-    stream.nextAction = "start";
-    stream.updatedAt = new Date().toISOString();
-    db.streams.set(id, stream);
-    
-    withStreamContext(id);
-    logger.info('Stream paused successfully', { stream_id: id });
-    
-    return NextResponse.json({ data: stream });
-  });
+  }
+
+  if (stream.status !== "active") {
+    return createErrorResponse("INVALID_STREAM_STATE", "Only active streams can be paused", 409);
+  }
+  stream.status = "paused";
+  stream.nextAction = "start";
+  stream.updatedAt = new Date().toISOString();
+  db.streams.set(id, stream);
+
+  const payload = { data: stream };
+  if (token) {
+    db.idempotency.set(token, payload);
+  }
+
+  return NextResponse.json(payload);
 }

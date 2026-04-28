@@ -1,7 +1,8 @@
 import { NextResponse, NextRequest } from "next/server";
 import { db, encodeCursor, decodeCursor } from "@/app/lib/db";
-import { withCorrelationMiddleware } from "@/app/lib/correlation-middleware";
-import { logger, getCorrelationContext } from "@/app/lib/logger";
+import { getClientIdentity, checkRateLimit, rateLimitResponse } from "@/app/lib/rate-limit";
+import { recordThrottle, recordRequest } from "@/app/lib/rate-limit-metrics";
+import { getLimitForRoute } from "@/app/lib/rate-limit-config";
 
 function createErrorResponse(code: string, message: string, status: number) {
   const context = getCorrelationContext();
@@ -9,22 +10,37 @@ function createErrorResponse(code: string, message: string, status: number) {
 }
 
 export async function GET(request: Request) {
-  return withCorrelationMiddleware(request as NextRequest, async () => {
-    const { searchParams } = new URL(request.url);
-    const cursor = searchParams.get("cursor");
-    const streamId = searchParams.get("streamId");
-    const type = searchParams.get("type");
-    const limit = Math.min(parseInt(searchParams.get("limit") || "20"), 100);
+  const url = new URL(request.url);
+  const limitType = getLimitForRoute("GET", url.pathname);
+  const identity = getClientIdentity(request);
+  const result = await checkRateLimit(identity, limitType);
 
-    logger.info('Activity list request', { stream_id: streamId, type, limit });
+  if (!result.allowed) {
+    recordThrottle(url.pathname, limitType, identity.type, identity.displayValue);
+    return rateLimitResponse(result.retryAfter!);
+  }
+  recordRequest(url.pathname);
 
-    let events = Array.from(db.activity.values()).sort((a, b) => b.timestamp.localeCompare(a.timestamp));
+  const { searchParams } = url;
+  const cursor = searchParams.get("cursor");
+  const streamId = searchParams.get("streamId");
+  const type = searchParams.get("type");
+  const limit = Math.min(parseInt(searchParams.get("limit") || "20"), 100);
 
-    if (streamId) {
-      events = events.filter((e) => e.streamId === streamId);
-    }
-    if (type) {
-      events = events.filter((e) => e.type === type);
+  let events = Array.from(db.activity.values()).sort((a, b) => b.timestamp.localeCompare(a.timestamp));
+
+  if (streamId) {
+    events = events.filter((e) => e.streamId === streamId);
+  }
+  if (type) {
+    events = events.filter((e) => e.type === type);
+  }
+
+  if (cursor) {
+    const cursorId = decodeCursor(cursor);
+    const cursorIndex = events.findIndex((e) => e.id === cursorId);
+    if (cursorIndex >= 0) {
+      events = events.slice(cursorIndex + 1);
     }
 
     if (cursor) {

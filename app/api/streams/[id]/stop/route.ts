@@ -1,7 +1,8 @@
 import { NextResponse, NextRequest } from "next/server";
 import { db } from "@/app/lib/db";
-import { withCorrelationMiddleware, withStreamContext } from "@/app/lib/correlation-middleware";
-import { logger, getCorrelationContext } from "@/app/lib/logger";
+import { getClientIdentity, checkRateLimit, rateLimitResponse } from "@/app/lib/rate-limit";
+import { recordThrottle, recordRequest } from "@/app/lib/rate-limit-metrics";
+import { getLimitForRoute } from "@/app/lib/rate-limit-config";
 
 function createErrorResponse(code: string, message: string, status: number) {
   const context = getCorrelationContext();
@@ -12,29 +13,60 @@ export async function POST(
   request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  return withCorrelationMiddleware(request as NextRequest, async () => {
-    const { id } = await params;
-    
-    logger.info('Stream stop request', { stream_id: id });
-    
-    const stream = db.streams.get(id);
-    if (!stream) {
-      logger.warn('Stream not found for stop', { stream_id: id });
-      return createErrorResponse("STREAM_NOT_FOUND", `Stream '${id}' not found`, 404);
+  const { id } = await params;
+  const url = new URL(_request.url);
+  const limitType = getLimitForRoute("POST", url.pathname);
+  const identity = getClientIdentity(_request);
+  const result = await checkRateLimit(identity, limitType);
+
+  if (!result.allowed) {
+    recordThrottle(url.pathname, limitType, identity.type, identity.displayValue);
+    return rateLimitResponse(result.retryAfter!);
+  }
+  recordRequest(url.pathname);
+
+  const stream = db.streams.get(id);
+  if (!stream) {
+    return createErrorResponse("STREAM_NOT_FOUND", `Stream '${id}' not found`, 404);
+  }
+
+  // Org Policy Check
+  const actorAddress = _request.headers.get("Actor-Wallet-Address");
+  const policyResult = checkStreamOrgPolicy(id, actorAddress ?? "", "stop");
+
+  if (policyResult) {
+    if (!policyResult.allowed) {
+      return createErrorResponse(policyResult.code, policyResult.message, policyResult.httpStatus);
     }
-    if (stream.status !== "active" && stream.status !== "draft") {
-      logger.warn('Invalid stream state for stop', { stream_id: id, status: stream.status });
-      return createErrorResponse("INVALID_STREAM_STATE", "Only active or draft streams can be stopped", 409);
+    if (policyResult.requiresApproval) {
+      return createErrorResponse("APPROVAL_REQUIRED", "This action requires multi-sig approval. Please initiate an approval request.", 409);
     }
-    
-    stream.status = "ended";
-    stream.nextAction = "withdraw";
-    stream.updatedAt = new Date().toISOString();
-    db.streams.set(id, stream);
-    
-    withStreamContext(id);
-    logger.info('Stream stopped successfully', { stream_id: id });
-    
-    return NextResponse.json({ data: stream });
+  }
+
+  if (stream.status !== "active" && stream.status !== "draft") {
+    return createErrorResponse("INVALID_STREAM_STATE", "Only active or draft streams can be stopped", 409);
+  }
+
+  const before = structuredClone(stream);
+  const updatedStream = {
+    ...stream,
+    status: "ended" as const,
+    nextAction: "withdraw" as const,
+    updatedAt: new Date().toISOString(),
+  };
+
+  db.streams.set(id, updatedStream);
+  recordPrivilegedStreamAuditEvent({
+    action: "stream.stop.override",
+    after: updatedStream,
+    before,
+    metadata: {
+      resultingStatus: updatedStream.status,
+    },
+    request,
+    streamId: id,
+    targetAccount: updatedStream.recipient,
   });
+
+  return NextResponse.json({ data: updatedStream });
 }
