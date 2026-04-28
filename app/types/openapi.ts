@@ -20,10 +20,22 @@ export interface Stream {
   schedule: string;
   status: StreamStatus;
   nextAction?: StreamAction;
+  email?: string;       // PII
+  label?: string;       // PII
+  memo?: string;        // PII
+  partnerId?: string;   // PII
   createdAt: string;
   updatedAt: string;
   settlementTxHash?: string;
   withdrawal?: WithdrawalStatus;
+}
+
+export interface User {
+  wallet_address: string;
+  email: string | null;
+  display_name: string;
+  avatar_url: string | null;
+  created_at: string;
 }
 
 export interface ApiError {
