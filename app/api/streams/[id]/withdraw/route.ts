@@ -11,6 +11,17 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params;
+  const url = new URL(_request.url);
+  const limitType = getLimitForRoute("POST", url.pathname);
+  const identity = getClientIdentity(_request);
+  const result = await checkRateLimit(identity, limitType);
+
+  if (!result.allowed) {
+    recordThrottle(url.pathname, limitType, identity.type, identity.displayValue);
+    return rateLimitResponse(result.retryAfter!);
+  }
+  recordRequest(url.pathname);
+
   const stream = db.streams.get(id);
   if (!stream) {
     return createErrorResponse("STREAM_NOT_FOUND", `Stream '${id}' not found`, 404);

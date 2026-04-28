@@ -7,7 +7,18 @@ function createErrorResponse(code: string, message: string, status: number, requ
 }
 
 export async function GET(request: Request) {
-  const { searchParams } = new URL(request.url);
+  const url = new URL(request.url);
+  const limitType = getLimitForRoute("GET", url.pathname);
+  const identity = getClientIdentity(request);
+  const result = await checkRateLimit(identity, limitType);
+
+  if (!result.allowed) {
+    recordThrottle(url.pathname, limitType, identity.type, identity.displayValue);
+    return rateLimitResponse(result.retryAfter!);
+  }
+  recordRequest(url.pathname);
+
+  const { searchParams } = url;
   const cursor = searchParams.get("cursor");
   const status = searchParams.get("status");
   const limit = Math.min(parseInt(searchParams.get("limit") || "20"), 100);
@@ -38,6 +49,17 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
+  const url = new URL(request.url);
+  const limitType = getLimitForRoute("POST", url.pathname);
+  const identity = getClientIdentity(request);
+  const result = await checkRateLimit(identity, limitType);
+
+  if (!result.allowed) {
+    recordThrottle(url.pathname, limitType, identity.type, identity.displayValue);
+    return rateLimitResponse(result.retryAfter!);
+  }
+  recordRequest(url.pathname);
+
   const idempotencyKey = request.headers.get("Idempotency-Key");
   const token = idempotencyKey ? idempotencyToken("streams.create", idempotencyKey) : null;
 
