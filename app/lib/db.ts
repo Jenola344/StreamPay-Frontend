@@ -113,6 +113,34 @@ export const db = {
   streams: createStreamsMap(),
   activity: createActivityMap(),
 
+  idempotency: new Map<string, any>(),
+};
+
+const locks = new Map<string, Promise<void>>();
+
+/**
+ * Simulates a DB-level row lock (SELECT FOR UPDATE).
+ * Ensures that only one operation can proceed for a given stream ID at a time.
+ */
+export async function withLock<T>(id: string, callback: () => Promise<T>): Promise<T> {
+  const existingLock = locks.get(id) || Promise.resolve();
+  let resolveCurrent: () => void;
+  const currentLock = new Promise<void>((resolve) => {
+    resolveCurrent = resolve;
+  });
+  
+  // Chain the lock
+  locks.set(id, currentLock);
+
+  try {
+    await existingLock;
+    return await callback();
+  } finally {
+    if (locks.get(id) === currentLock) {
+      locks.delete(id);
+    }
+    resolveCurrent!();
+  }
 export const db = {
   streams: createInitialStreams(),
   activity: createInitialActivity(),
