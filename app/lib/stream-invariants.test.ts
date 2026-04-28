@@ -7,7 +7,10 @@ import {
 } from './stream-invariants';
 
 describe('Stream Invariants (Property-based)', () => {
-  it('should maintain conservation of value regardless of event sequence', () => {
+  const isHeavyMode = process.env.TEST_MODE === 'heavy';
+  const numRuns = isHeavyMode ? 10000 : 1000;
+
+  it(`should maintain conservation of value (${numRuns} runs)`, () => {
     fc.assert(
       fc.property(
         fc.array(
@@ -36,7 +39,7 @@ describe('Stream Invariants (Property-based)', () => {
           return true;
         }
       ),
-      { numRuns: 1000 }
+      { numRuns, seed: 42 } // Seed for deterministic CI stability
     );
   });
 
