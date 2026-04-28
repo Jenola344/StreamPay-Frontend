@@ -25,9 +25,19 @@ export async function POST(
   if (stream.status !== "active" && stream.status !== "paused") {
     return createErrorResponse("INVALID_STREAM_STATE", "Only active or paused streams can be settled", 409);
   }
+  const txHash = `fake-tx-${crypto.randomUUID().slice(0, 8)}`;
+  const now = new Date().toISOString();
   stream.status = "ended";
   stream.nextAction = "withdraw";
-  stream.updatedAt = new Date().toISOString();
+  stream.settlementTxHash = txHash;
+  stream.withdrawal = {
+    state: "pending",
+    requestedAt: now,
+    lastCheckedAt: now,
+    attempts: 0,
+    settlementTxHash: txHash,
+  };
+  stream.updatedAt = now;
   db.streams.set(id, stream);
 
   try {
