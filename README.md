@@ -59,9 +59,52 @@ App will be at `http://localhost:3000`.
 
 On every push/PR to `main`, GitHub Actions runs:
 
+### Standard CI (`.github/workflows/ci.yml`)
 - Install: `npm ci`
 - Build: `npm run build`
 - Tests: `npm test`
+
+### Security Scans (`.github/workflows/security.yml`)
+
+Security gates run on every PR, push to main, and nightly at 2 AM UTC:
+
+1. **CodeQL SAST** - Static Application Security Testing for JavaScript/TypeScript
+   - Analyzes source code for security vulnerabilities
+   - Results appear in GitHub Security tab
+   - Blocks merge on critical findings
+
+2. **Dependency Audit** - npm vulnerability scanning
+   - Scans `package-lock.json` for known vulnerabilities
+   - **Blocks on CRITICAL** severity unless exempted
+   - Exemptions tracked in `.github/security-exemptions.json` with expiry dates
+   - Advisory links provided in PR comments
+
+3. **Container Scan** (conditional - only if Dockerfile exists)
+   - Trivy scanner checks Docker images for OS/library vulnerabilities
+   - Same exemption policy as dependency scan
+   - Scans both CRITICAL and HIGH severity
+
+#### Security Exemptions Policy
+
+Vulnerabilities can be exempted temporarily with:
+- Valid justification and expiry date (max 90 days)
+- No auto-renewal - requires manual review
+- 14-day advance notification before expiry
+- Tracked in `.github/security-exemptions.json`
+
+#### Local Testing
+
+Mirror CI security checks locally:
+```bash
+# Check for dependency vulnerabilities
+npm audit
+
+# View audit in JSON format
+npm audit --json
+
+# Run linting (part of security hygiene)
+npm run lint
+```
 
 Ensure the workflow passes before merging.
 
