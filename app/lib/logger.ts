@@ -139,3 +139,6 @@ export function createChildContext(parentContext: CorrelationContext, updates: P
     request_id: generateUUID(), // New request_id for child operations
   };
 }
+
+// Context helpers (re-exported from correlation-middleware for convenience)
+export { withStreamContext, withJobContext, withStellarContext, withWebhookContext, withRetryContext } from './correlation-middleware';

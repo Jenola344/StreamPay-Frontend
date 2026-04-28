@@ -4,13 +4,23 @@ This guide explains how to trace failed requests and debug issues using the stru
 
 ## Overview
 
-The StreamPay frontend implements end-to-end correlation propagation using:
+The StreamPay system implements end-to-end correlation propagation across:
+- **API Edge**: HTTP request handling
+- **Queue System**: Job enqueue with correlation context
+- **Worker Processing**: Job execution with context restoration
+- **Chain Submission**: Stellar transaction submission
+- **Webhook Emission**: Event delivery with correlation
+
+The system uses:
 - **request_id**: Unique identifier for each HTTP request
 - **correlation_id**: Propagated across all async operations for a single business transaction
 - **traceparent**: Optional W3C trace context for distributed tracing
 - **stream_id**: Stream identifier when applicable
 - **job_id**: Job identifier for async operations
 - **stellar_tx_hash**: Stellar transaction hash for chain submissions
+- **webhook_id**: Webhook delivery identifier
+- **retry_count**: Retry attempt number
+- **queue_name**: Queue name for job processing
 
 All logs are structured JSON with consistent fields for easy querying in log aggregation systems like Datadog, ELK, or CloudWatch.
 
@@ -37,6 +47,43 @@ Every log entry includes:
   "...": "additional context fields"
 }
 ```
+
+## Complete Propagation Flow
+
+The correlation context propagates through the following stages:
+
+### 1. API Edge
+- Request arrives with optional headers (`x-request-id`, `x-correlation-id`, `traceparent`)
+- Middleware extracts or generates correlation IDs
+- Context stored in AsyncLocalStorage
+- Log: `Incoming request` with correlation metadata
+
+### 2. Queue Enqueue
+- Job created with correlation context copied from current context
+- Job metadata includes: `request_id`, `correlation_id`, `stream_id`, `traceparent`
+- Log: `Job enqueued` with `job_id`, `queue_name`, `correlation_id`
+
+### 3. Worker Processing
+- Worker retrieves job and restores correlation context
+- Context wrapped with AsyncLocalStorage for job execution
+- Job-specific context added: `job_id`, `queue_name`, `retry_count`
+- Log: `Worker processing job` with full correlation metadata
+
+### 4. Chain Submission
+- Stellar service adds `stellar_tx_hash` to correlation context
+- Transaction build logged with stream_id and correlation_id
+- RPC submission logged with stellar_tx_hash
+- Log: `Stellar transaction submitted to RPC` with all correlation fields
+
+### 5. Webhook Emission
+- Webhook service adds `webhook_id` to correlation context
+- Internal headers stripped before external delivery
+- Log: `Webhook delivered successfully` with webhook_id and correlation_id
+
+### 6. Response
+- Safe correlation headers returned to client: `x-request-id`, `x-correlation_id`
+- Internal headers stripped: `x-internal-auth`, `x-service-token`
+- Log: `Request completed` with status and correlation_id
 
 ## How to Trace a Failed Settlement
 
@@ -130,23 +177,43 @@ This will show you:
 - Hard to trace across services
 - No structured fields for filtering
 
-### After: Structured Logs with Correlation
+### After: Structured Logs with Full Propagation
 
 ```json
 {"level":"info","message":"Incoming request","timestamp":"2026-04-28T10:30:00.000Z","service":"streampay-frontend","environment":"production","request_id":"req-abc123","correlation_id":"corr-def456","method":"POST","url":"/api/streams/stream-ada/settle"}
 
 {"level":"info","message":"Settlement request received","timestamp":"2026-04-28T10:30:00.100Z","service":"streampay-frontend","environment":"production","request_id":"req-abc123","correlation_id":"corr-def456","stream_id":"stream-ada"}
 
-{"level":"info","message":"Settlement transaction submitted","timestamp":"2026-04-28T10:30:01.000Z","service":"streampay-frontend","environment":"production","request_id":"req-abc123","correlation_id":"corr-def456","stream_id":"stream-ada","stellar_tx_hash":"fake-tx-xyz789"}
+{"level":"info","message":"Settlement job enqueued","timestamp":"2026-04-28T10:30:00.200Z","service":"streampay-frontend","environment":"production","request_id":"req-abc123","correlation_id":"corr-def456","stream_id":"stream-ada","job_id":"job-xyz789","queue_name":"settlement-queue"}
 
-{"level":"error","message":"Transaction submission failed","timestamp":"2026-04-28T10:30:02.000Z","service":"streampay-frontend","environment":"production","request_id":"req-abc123","correlation_id":"corr-def456","stream_id":"stream-ada","stellar_tx_hash":"fake-tx-xyz789","error":"RPC timeout"}
+{"level":"info","message":"Worker processing job","timestamp":"2026-04-28T10:30:00.300Z","service":"streampay-frontend","environment":"production","request_id":"req-abc123","correlation_id":"corr-def456","stream_id":"stream-ada","job_id":"job-xyz789","queue_name":"settlement-queue","attempt":1}
+
+{"level":"info","message":"Stellar transaction build started","timestamp":"2026-04-28T10:30:00.400Z","service":"streampay-frontend","environment":"production","request_id":"req-abc123","correlation_id":"corr-def456","stream_id":"stream-ada","job_id":"job-xyz789"}
+
+{"level":"info","message":"Stellar transaction built","timestamp":"2026-04-28T10:30:00.500Z","service":"streampay-frontend","environment":"production","request_id":"req-abc123","correlation_id":"corr-def456","stream_id":"stream-ada","stellar_tx_hash":"stellar-tx-abc123"}
+
+{"level":"info","message":"Stellar transaction submitted to RPC","timestamp":"2026-04-28T10:30:00.700Z","service":"streampay-frontend","environment":"production","request_id":"req-abc123","correlation_id":"corr-def456","stream_id":"stream-ada","stellar_tx_hash":"stellar-tx-abc123"}
+
+{"level":"info","message":"Stellar transaction confirmed","timestamp":"2026-04-28T10:30:01.000Z","service":"streampay-frontend","environment":"production","request_id":"req-abc123","correlation_id":"corr-def456","stream_id":"stream-ada","stellar_tx_hash":"stellar-tx-abc123"}
+
+{"level":"info","message":"Webhook emission started","timestamp":"2026-04-28T10:30:01.100Z","service":"streampay-frontend","environment":"production","request_id":"req-abc123","correlation_id":"corr-def456","stream_id":"stream-ada","stellar_tx_hash":"stellar-tx-abc123","webhook_id":"webhook-def456"}
+
+{"level":"info","message":"Webhook delivered successfully","timestamp":"2026-04-28T10:30:01.250Z","service":"streampay-frontend","environment":"production","request_id":"req-abc123","correlation_id":"corr-def456","stream_id":"stream-ada","webhook_id":"webhook-def456","status_code":200}
+
+{"level":"info","message":"Job processed successfully","timestamp":"2026-04-28T10:30:01.300Z","service":"streampay-frontend","environment":"production","request_id":"req-abc123","correlation_id":"corr-def456","stream_id":"stream-ada","job_id":"job-xyz789"}
+
+{"level":"info","message":"Settlement completed successfully","timestamp":"2026-04-28T10:30:01.400Z","service":"streampay-frontend","environment":"production","request_id":"req-abc123","correlation_id":"corr-def456","stream_id":"stream-ada","stellar_tx_hash":"stellar-tx-abc123","job_id":"job-xyz789"}
+
+{"level":"info","message":"Request completed","timestamp":"2026-04-28T10:30:01.500Z","service":"streampay-frontend","environment":"production","request_id":"req-abc123","correlation_id":"corr-def456","status":200}
 ```
 
 **Benefits:**
-- All logs linked by `correlation_id`
-- Easy to filter by any field
-- Clear timeline of events
+- All logs linked by single `correlation_id` across API → Queue → Worker → Chain → Webhook
+- Easy to filter by any field (job_id, stellar_tx_hash, webhook_id, queue_name)
+- Clear timeline of events with timestamps
 - Structured for automated analysis
+- Retry tracking with attempt numbers
+- Queue-level visibility
 
 ## Incident Debugging Flow
 
