@@ -1,5 +1,6 @@
 import { evaluateWithdrawalState } from "./withdraw-finality";
 import type { Stream } from "@/app/types/openapi";
+import type { FetchLike } from "./withdraw-finality";
 
 function createStream(overrides: Partial<Stream> = {}): Stream {
   return {
@@ -16,10 +17,6 @@ function createStream(overrides: Partial<Stream> = {}): Stream {
   };
 }
 
-function makeResponse(payload: unknown): Response {
-  return new Response(JSON.stringify(payload), { status: 200, headers: { "Content-Type": "application/json" } });
-}
-
 describe("evaluateWithdrawalState", () => {
   it("keeps withdrawal pending when settlement tx is not yet found", async () => {
     const stream = createStream({
@@ -32,13 +29,18 @@ describe("evaluateWithdrawalState", () => {
       },
     });
 
-    const fetcher = jest.fn().mockResolvedValue(
-      makeResponse({
+    const fetcher = jest.fn(async () => ({
+      ok: true,
+      json: async () => ({
         _embedded: { records: [{ hash: "other-tx", successful: true }] },
         _links: { next: { href: "https://horizon-testnet.stellar.org?page=1&cursor=abc123" } },
       }),
+    }));
+    const result = await evaluateWithdrawalState(
+      stream,
+      new Date("2026-04-28T08:00:30.000Z"),
+      fetcher as unknown as FetchLike,
     );
-    const result = await evaluateWithdrawalState(stream, new Date("2026-04-28T08:00:30.000Z"), fetcher);
 
     expect(result.alert).toBe(false);
     expect(result.stream.status).toBe("ended");
@@ -57,13 +59,18 @@ describe("evaluateWithdrawalState", () => {
       },
     });
 
-    const fetcher = jest.fn().mockResolvedValue(
-      makeResponse({
+    const fetcher = jest.fn(async () => ({
+      ok: true,
+      json: async () => ({
         _embedded: { records: [{ hash: "tx-123", successful: true }] },
         _links: { next: { href: "https://horizon-testnet.stellar.org?page=1&cursor=abc123" } },
       }),
+    }));
+    const result = await evaluateWithdrawalState(
+      stream,
+      new Date("2026-04-28T08:00:45.000Z"),
+      fetcher as unknown as FetchLike,
     );
-    const result = await evaluateWithdrawalState(stream, new Date("2026-04-28T08:00:45.000Z"), fetcher);
 
     expect(result.alert).toBe(false);
     expect(result.stream.status).toBe("withdrawn");

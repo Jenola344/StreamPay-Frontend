@@ -1,3 +1,4 @@
+/** @jest-environment node */
 import { db } from "@/app/lib/db";
 import { POST as settle } from "../settle/route";
 import { POST as withdraw } from "./route";
@@ -41,17 +42,15 @@ afterAll(() => {
 });
 
 function setFetchResponse(payload: unknown) {
-  global.fetch = jest.fn().mockResolvedValue(
-    new Response(JSON.stringify(payload), {
-      status: 200,
-      headers: { "Content-Type": "application/json" },
-    }),
-  ) as unknown as typeof fetch;
+  global.fetch = jest.fn().mockResolvedValue({
+    ok: true,
+    json: async () => payload,
+  }) as unknown as typeof fetch;
 }
 
 describe("POST /api/streams/[id]/withdraw", () => {
   it("returns pending first, then succeeded when tx appears", async () => {
-    await settle(new Request("http://localhost/api/streams/stream-ada/settle", { method: "POST" }), {
+    await settle({} as Request, {
       params: Promise.resolve({ id: "stream-ada" }),
     });
 
@@ -60,7 +59,7 @@ describe("POST /api/streams/[id]/withdraw", () => {
       _links: { next: { href: "https://horizon-testnet.stellar.org?cursor=a1" } },
     });
     const pendingResponse = await withdraw(
-      new Request("http://localhost/api/streams/stream-ada/withdraw", { method: "POST" }),
+      {} as Request,
       { params: Promise.resolve({ id: "stream-ada" }) },
     );
     const pendingBody = await pendingResponse.json();
@@ -75,7 +74,7 @@ describe("POST /api/streams/[id]/withdraw", () => {
       _links: { next: { href: "https://horizon-testnet.stellar.org?cursor=a2" } },
     });
     const successResponse = await withdraw(
-      new Request("http://localhost/api/streams/stream-ada/withdraw", { method: "POST" }),
+      {} as Request,
       { params: Promise.resolve({ id: "stream-ada" }) },
     );
     const successBody = await successResponse.json();
