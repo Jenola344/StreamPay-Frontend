@@ -74,6 +74,22 @@ streampay-frontend/
 └── README.md
 ```
 
+## Asset Amount Validation Policy
+
+`app/lib/amount.ts` centralizes amount parsing and stream escrow math used by the frontend stream list.
+
+- Supported assets are intentionally allow-listed: `XLM`, `USDC`.
+- Amount inputs must be plain decimal strings with at most 7 fractional digits (Stellar stroop precision).
+- Negative values are rejected.
+- Values above signed int64 bounds are rejected.
+- Escrow derivation rejects sub-stroop outcomes (no implicit rounding).
+- Validation returns explicit 4xx-style error metadata (`httpStatus` + error `code`) so invalid user input does not bubble into 500-class failures.
+
+## Fuzz and Property-style Tests
+
+- `app/lib/amount.test.ts` includes deterministic fuzz-style checks (seeded RNG) with bounded runtime.
+- Bounded fuzz runs in normal CI because it is fast; if runtime grows in the future, keep deterministic unit coverage in CI and move larger fuzz campaigns to nightly workflows.
+
 ## License
 
 MIT
