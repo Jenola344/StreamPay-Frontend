@@ -1,5 +1,64 @@
-import { Stream, ActivityEvent } from "@/app/types/openapi";
+import { Stream, ActivityEvent, User } from "@/app/types/openapi";
 
+export const db = {
+  users: new Map<string, User>([
+    [
+      "GD7H...3J4K",
+      {
+        wallet_address: "GD7H...3J4K",
+        email: "ada@creativestudio.io",
+        display_name: "Ada Creative",
+        avatar_url: null,
+        created_at: "2026-01-01T00:00:00Z",
+      },
+    ],
+  ]),
+  streams: new Map<string, Stream>([
+    [
+      "stream-ada",
+      {
+        id: "stream-ada",
+        recipient: "Ada Creative Studio",
+        rate: "120 XLM / month",
+        schedule: "Pays every 30 days",
+        status: "active",
+        nextAction: "pause",
+        createdAt: "2026-04-01T09:00:00Z",
+        updatedAt: "2026-04-28T10:30:00Z",
+        email: "ada@creativestudio.io",
+        label: "Design Retainer Q2",
+        partnerId: "PARTNER-123",
+      },
+    ],
+    [
+      "stream-kemi",
+      {
+        id: "stream-kemi",
+        recipient: "Kemi Onboarding Support",
+        rate: "32 XLM / week",
+        schedule: "Draft stream ready to launch",
+        status: "draft",
+        nextAction: "start",
+        createdAt: "2026-04-10T14:00:00Z",
+        updatedAt: "2026-04-28T11:00:00Z",
+        email: "kemi@onboarding.io",
+        memo: "April Support batch",
+      },
+    ],
+    [
+      "stream-yusuf",
+      {
+        id: "stream-yusuf",
+        recipient: "Yusuf QA Partnership",
+        rate: "18 XLM / day",
+        schedule: "Ended yesterday with funds available",
+        status: "ended",
+        nextAction: "withdraw",
+        createdAt: "2026-04-15T08:00:00Z",
+        updatedAt: "2026-04-27T20:00:00Z",
+      },
+    ],
+  ]),
 const initialStreams: Stream[] = [
   {
     id: "stream-ada",
@@ -54,6 +113,34 @@ export const db = {
   streams: createStreamsMap(),
   activity: createActivityMap(),
 
+  idempotency: new Map<string, any>(),
+};
+
+const locks = new Map<string, Promise<void>>();
+
+/**
+ * Simulates a DB-level row lock (SELECT FOR UPDATE).
+ * Ensures that only one operation can proceed for a given stream ID at a time.
+ */
+export async function withLock<T>(id: string, callback: () => Promise<T>): Promise<T> {
+  const existingLock = locks.get(id) || Promise.resolve();
+  let resolveCurrent: () => void;
+  const currentLock = new Promise<void>((resolve) => {
+    resolveCurrent = resolve;
+  });
+  
+  // Chain the lock
+  locks.set(id, currentLock);
+
+  try {
+    await existingLock;
+    return await callback();
+  } finally {
+    if (locks.get(id) === currentLock) {
+      locks.delete(id);
+    }
+    resolveCurrent!();
+  }
 export const db = {
   streams: createInitialStreams(),
   activity: createInitialActivity(),

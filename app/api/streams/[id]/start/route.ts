@@ -1,3 +1,5 @@
+import { NextResponse } from "next/server";
+import { StreamService } from "@/app/lib/stream-service";
 import { NextResponse, NextRequest } from "next/server";
 import { db } from "@/app/lib/db";
 import { getClientIdentity, checkRateLimit, rateLimitResponse } from "@/app/lib/rate-limit";
@@ -14,6 +16,12 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params;
+  const idempotencyKey = request.headers.get("Idempotency-Key") || undefined;
+
+  const result = await StreamService.applyAction(id, "start", idempotencyKey);
+
+  if (!result.ok) {
+    return NextResponse.json({ error: result.error }, { status: result.status });
   const url = new URL(_request.url);
   const limitType = getLimitForRoute("POST", url.pathname);
   const identity = getClientIdentity(_request);
@@ -46,9 +54,6 @@ export async function POST(
   if (stream.status !== "draft") {
     return createErrorResponse("INVALID_STREAM_STATE", "Only draft streams can be started", 409);
   }
-  stream.status = "active";
-  stream.nextAction = "pause";
-  stream.updatedAt = new Date().toISOString();
-  db.streams.set(id, stream);
-  return NextResponse.json({ data: stream });
+
+  return NextResponse.json({ data: result.data });
 }

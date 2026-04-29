@@ -1,5 +1,7 @@
+import { NextResponse } from "next/server";
+import { StreamService } from "@/app/lib/stream-service";
 import { NextResponse, NextRequest } from "next/server";
-import { db } from "@/app/lib/db";
+import { db, withLock } from "@/app/lib/db";
 import { evaluateWithdrawalState } from "@/app/lib/withdraw-finality";
 
 function createErrorResponse(code: string, message: string, status: number) {
@@ -12,46 +14,43 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params;
-  const url = new URL(_request.url);
-  const limitType = getLimitForRoute("POST", url.pathname);
-  const identity = getClientIdentity(_request);
-  const result = await checkRateLimit(identity, limitType);
+  const idempotencyKey = request.headers.get("Idempotency-Key");
 
-  if (!result.allowed) {
-    recordThrottle(url.pathname, limitType, identity.type, identity.displayValue);
-    return rateLimitResponse(result.retryAfter!);
-  }
-  recordRequest(url.pathname);
-
-  const stream = db.streams.get(id);
-  if (!stream) {
-    return createErrorResponse("STREAM_NOT_FOUND", `Stream '${id}' not found`, 404);
+  // 1. Quick idempotency check before locking
+  if (idempotencyKey && db.idempotency.has(idempotencyKey)) {
+    return NextResponse.json(db.idempotency.get(idempotencyKey));
   }
 
-  // Org Policy Check
-  const actorAddress = _request.headers.get("Actor-Wallet-Address");
-  const policyResult = checkStreamOrgPolicy(id, actorAddress ?? "", "withdraw");
-
-  if (policyResult) {
-    if (!policyResult.allowed) {
-      return createErrorResponse(policyResult.code, policyResult.message, policyResult.httpStatus);
+  // 2. Acquire lock for this stream ID
+  return await withLock(id, async () => {
+    // 3. Double-check idempotency inside the lock
+    if (idempotencyKey && db.idempotency.has(idempotencyKey)) {
+      return NextResponse.json(db.idempotency.get(idempotencyKey));
     }
-    if (policyResult.requiresApproval) {
-      return createErrorResponse("APPROVAL_REQUIRED", "This action requires multi-sig approval. Please initiate an approval request.", 409);
-    }
-  }
 
-  if (stream.status !== "ended") {
-    if (stream.status === "withdrawn") {
-      return NextResponse.json({ data: stream });
+    const stream = db.streams.get(id);
+    if (!stream) {
+      return createErrorResponse("STREAM_NOT_FOUND", `Stream '${id}' not found`, 404);
     }
-    return createErrorResponse("INVALID_STREAM_STATE", "Only ended streams can be withdrawn from", 409);
-  }
-  const { stream: updated, alert } = await evaluateWithdrawalState(stream, new Date(), fetch);
-  db.streams.set(id, updated);
-  return NextResponse.json({
-    data: updated,
-    withdrawal: updated.withdrawal,
-    alert,
+
+    // 4. Validate state
+    if (stream.status !== "ended") {
+      return createErrorResponse("INVALID_STREAM_STATE", `Only ended streams can be withdrawn from. Current status: ${stream.status}`, 409);
+    }
+
+    // 5. Update state
+    stream.status = "withdrawn";
+    stream.nextAction = undefined;
+    stream.updatedAt = new Date().toISOString();
+    db.streams.set(id, stream);
+
+    const responseData = { data: stream };
+
+    // 6. Store idempotency result
+    if (idempotencyKey) {
+      db.idempotency.set(idempotencyKey, responseData);
+    }
+
+    return NextResponse.json(responseData);
   });
 }
